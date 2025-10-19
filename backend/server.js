@@ -1,33 +1,36 @@
 // ============================================
-// FILE: backend/server.js (UPDATED WITH DEBUGGING)
+// FILE: backend/server.js (FIXED CORS VERSION)
 // ============================================
 const express = require('express');
 const mongoose = require('mongoose');
+const cors = require('cors'); // Add this line
 const doctorsRoutes = require('./routes/doctors');
 const User = require('./models/User');
 
 const app = express();
 
 // ============================================
-// STEP 1: ENHANCED CORS MIDDLEWARE
+// STEP 1: CORS MIDDLEWARE (USING CORS PACKAGE - FIXED)
 // ============================================
+app.use(cors({
+  origin: [
+    'https://healthlink-kromium.onrender.com',
+    'http://localhost:5173',
+    'http://localhost:3000',
+    'https://healthlink-kromium-backend.onrender.com'
+  ],
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Origin', 'Accept']
+}));
+
+// Handle preflight requests globally
+app.options('*', cors());
+
+// Additional custom CORS logging
 app.use((req, res, next) => {
   const origin = req.headers.origin;
   console.log(`🌐 ${new Date().toISOString()} - ${req.method} ${req.path} - Origin: ${origin || 'none'}`);
-  
-  // Set CORS headers
-  res.header('Access-Control-Allow-Origin', '*');
-  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS, PATCH, HEAD');
-  res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization, Content-Length, X-Requested-With');
-  res.header('Access-Control-Allow-Credentials', 'true');
-  res.header('Access-Control-Max-Age', '86400');
-  
-  // Handle preflight requests
-  if (req.method === 'OPTIONS') {
-    console.log('✅ Preflight request handled for:', req.path);
-    return res.status(200).end();
-  }
-  
   next();
 });
 
@@ -70,7 +73,6 @@ try {
   console.log('💡 Creating fallback chat routes...');
   
   // Fallback chat routes
-  const express = require('express');
   const fallbackChatRouter = express.Router();
   
   fallbackChatRouter.post('/', (req, res) => {
@@ -106,7 +108,8 @@ app.get('/api/health', (req, res) => {
     timestamp: new Date().toISOString(),
     cors: 'ENABLED',
     version: '2.0.0',
-    database: mongoose.connection.readyState === 1 ? 'Connected' : 'Disconnected'
+    database: mongoose.connection.readyState === 1 ? 'Connected' : 'Disconnected',
+    yourOrigin: req.headers.origin
   });
 });
 
@@ -120,7 +123,8 @@ app.get('/api/cors-test', (req, res) => {
     message: '🎉 CORS is WORKING PERFECTLY!',
     timestamp: new Date().toISOString(),
     yourOrigin: req.headers.origin,
-    corsEnabled: true
+    corsEnabled: true,
+    headers: req.headers
   });
 });
 
@@ -332,10 +336,13 @@ const PORT = process.env.PORT || 5000;
 app.listen(PORT, '0.0.0.0', () => {
   console.log('\n🚀 =================================');
   console.log(`✅ SERVER STARTED ON PORT ${PORT}`);
-  console.log(`🌐 CORS: FULLY ENABLED`);
+  console.log(`🌐 CORS: FULLY ENABLED WITH CORS PACKAGE`);
   console.log(`🗄️  MongoDB: ${mongoose.connection.readyState === 1 ? 'CONNECTED' : 'DISCONNECTED'}`);
-  console.log(`🔓 All origins allowed: *`);
-  console.log(`📡 Preflight: HANDLED`);
+  console.log(`🔓 Allowed Origins:`);
+  console.log(`   - https://healthlink-kromium.onrender.com`);
+  console.log(`   - http://localhost:5173`);
+  console.log(`   - http://localhost:3000`);
+  console.log(`📡 Preflight: GLOBALLY HANDLED`);
   console.log('🚀 =================================\n');
   
   console.log('🎯 AVAILABLE ENDPOINTS:');
@@ -349,7 +356,7 @@ app.listen(PORT, '0.0.0.0', () => {
   console.log('   POST /api/chat');
   console.log('   GET  /api/chat/health');
   console.log('');
-  console.log('✅ Server is READY for all requests!');
+  console.log('✅ Server is READY for all CORS requests!');
 });
 
 module.exports = app;
