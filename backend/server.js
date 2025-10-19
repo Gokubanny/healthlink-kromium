@@ -1,5 +1,5 @@
 // ============================================
-// FILE: backend/server.js (FOOLPROOF CORS SOLUTION)
+// FILE: backend/server.js (ENHANCED CORS SOLUTION)
 // ============================================
 const express = require('express');
 const mongoose = require('mongoose');
@@ -13,27 +13,34 @@ dotenv.config();
 const app = express();
 
 // ============================================
-// STEP 1: CORS - BEFORE EVERYTHING ELSE
+// STEP 1: ENHANCED CORS MIDDLEWARE
 // ============================================
 
-// Most permissive CORS setup - handles ALL scenarios
+// More comprehensive CORS handling
 app.use((req, res, next) => {
-  // Allow ALL origins from these domains
+  // Allow specific origins in production, all in development
+  const allowedOrigins = [
+    'https://healthlink-kromium.onrender.com',
+    'http://localhost:3000',
+    'http://localhost:5173'
+  ];
+  
   const origin = req.headers.origin;
+  const requestOrigin = allowedOrigins.includes(origin) ? origin : '*';
   
-  // Set CORS headers for ALL requests
-  res.setHeader('Access-Control-Allow-Origin', origin || '*');
+  // Set CORS headers
+  res.setHeader('Access-Control-Allow-Origin', requestOrigin);
   res.setHeader('Access-Control-Allow-Credentials', 'true');
-  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS, PATCH');
-  res.setHeader('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
-  res.setHeader('Access-Control-Max-Age', '86400');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS, PATCH, HEAD');
+  res.setHeader('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization, X-Requested-With, Content-Range, Content-Disposition, Content-Description');
+  res.setHeader('Access-Control-Max-Age', '86400'); // 24 hours
   
-  // Log every request for debugging
+  // Enhanced logging
   console.log(`${new Date().toISOString()} - ${req.method} ${req.path} - Origin: ${origin || 'none'}`);
   
-  // Handle preflight
+  // Handle preflight requests
   if (req.method === 'OPTIONS') {
-    console.log('✅ Preflight request handled:', req.path);
+    console.log('✅ Preflight request handled successfully');
     return res.status(200).end();
   }
   
@@ -115,6 +122,21 @@ app.get('/api/health', (req, res) => {
   });
 });
 
+// CORS test endpoint
+app.get('/api/cors-test', (req, res) => {
+  res.json({
+    success: true,
+    message: 'CORS test successful',
+    timestamp: new Date().toISOString(),
+    origin: req.headers.origin,
+    corsHeaders: {
+      'Access-Control-Allow-Origin': req.headers.origin || '*',
+      'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
+      'Access-Control-Allow-Headers': 'Content-Type, Authorization'
+    }
+  });
+});
+
 // Root endpoint
 app.get('/', (req, res) => {
   res.json({
@@ -147,7 +169,7 @@ const server = app.listen(PORT, '0.0.0.0', () => {
   console.log('\n🚀 =================================');
   console.log(`✅ Server running on port ${PORT}`);
   console.log(`🌍 Environment: ${process.env.NODE_ENV || 'development'}`);
-  console.log(`🔓 CORS: FULLY OPEN (All origins allowed)`);
+  console.log(`🔓 CORS: ENHANCED CONFIGURATION`);
   console.log(`📡 Listening on: 0.0.0.0:${PORT}`);
   console.log('🚀 =================================\n');
 });

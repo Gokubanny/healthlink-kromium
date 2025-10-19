@@ -1,10 +1,10 @@
 // ============================================
-// FILE 4: src/lib/api.ts (ENHANCED WITH BETTER ERROR HANDLING)
+// FILE: src/lib/api.ts (ENHANCED WITH BETTER ERROR HANDLING)
 // ============================================
 import axios from 'axios';
 
 // Get API URL from environment variable
-const API_URL = import.meta.env.VITE_API_URL || 'https://healthlink-kromium-backend-k5ig.onrender.com/api';
+const API_URL = import.meta.env.VITE_API_URL || 'https://healthlink-kromium-backend.onrender.com/api';
 
 console.log('API Base URL:', API_URL);
 
@@ -14,7 +14,8 @@ const api = axios.create({
   headers: {
     'Content-Type': 'application/json',
   },
-  timeout: 10000, // 10 seconds timeout
+  timeout: 30000, // Increased timeout to 30 seconds
+  withCredentials: false, // Set to false if not using cookies
 });
 
 // Request interceptor to add token to requests
@@ -24,11 +25,20 @@ api.interceptors.request.use(
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
-    console.log('API Request:', config.method?.toUpperCase(), config.url);
+    
+    // Add unique identifier for CORS
+    config.headers['X-Requested-With'] = 'XMLHttpRequest';
+    
+    console.log('🚀 API Request:', {
+      method: config.method?.toUpperCase(),
+      url: config.url,
+      headers: config.headers
+    });
+    
     return config;
   },
   (error) => {
-    console.error('Request interceptor error:', error);
+    console.error('❌ Request interceptor error:', error);
     return Promise.reject(error);
   }
 );
@@ -36,22 +46,30 @@ api.interceptors.request.use(
 // Response interceptor to handle errors
 api.interceptors.response.use(
   (response) => {
-    console.log('API Response:', response.config.url, response.status);
+    console.log('✅ API Response Success:', {
+      url: response.config.url,
+      status: response.status
+    });
     return response;
   },
   (error) => {
-    console.error('API Error:', {
+    const errorDetails = {
       url: error.config?.url,
       status: error.response?.status,
       message: error.response?.data?.message || error.message,
-      data: error.response?.data
-    });
-
+      code: error.code
+    };
+    
+    console.error('❌ API Error:', errorDetails);
+    
+    // Handle CORS-specific errors
+    if (error.code === 'NETWORK_ERROR' || !error.response) {
+      console.error('🌐 CORS/Network Error - Check backend CORS configuration');
+    }
+    
     if (error.response?.status === 401) {
-      // Token expired or invalid
       localStorage.removeItem('token');
       localStorage.removeItem('user');
-      // Only redirect if not already on login page
       if (!window.location.pathname.includes('/signin')) {
         window.location.href = '/signin';
       }
