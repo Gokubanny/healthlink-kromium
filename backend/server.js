@@ -1,5 +1,5 @@
 // ============================================
-// FILE: backend/server.js (CORS FIXED)
+// FILE: backend/server.js (COMPLETE & FIXED)
 // ============================================
 const express = require('express');
 const mongoose = require('mongoose');
@@ -17,18 +17,15 @@ const userRoutes = require('./routes/user');
 const appointmentRoutes = require('./routes/appointment');
 const doctorRoutes = require('./routes/doctors');
 const medicalRecordRoutes = require('./routes/medicalRecords');
+const chatRoutes = require('./routes/chat');
 
 // Import error handler
 const errorHandler = require('./middleware/errorHandler');
 
 const app = express();
 
-// Middleware
-app.use(helmet());
-const chatRoutes = require('./routes/chat');
-
 // ============================================
-// CORS Configuration - FIXED
+// CORS Configuration - COMPLETE FIX
 // ============================================
 const corsOptions = {
   origin: function (origin, callback) {
@@ -47,17 +44,21 @@ const corsOptions = {
     // Production allowed origins
     const allowedOrigins = [
       'https://healthlink-kromium.onrender.com',
+      'https://healthlink-kromium-backend.onrender.com',
+      'https://healthlink-kromium-backend-srv-d3qgv7ali9vc73cbr430.onrender.com',
       process.env.FRONTEND_URL
     ].filter(Boolean);
     
-    if (allowedOrigins.some(allowed => origin.includes(allowed))) {
+    const isAllowed = allowedOrigins.some(allowed => origin.includes(allowed.replace('https://', '')));
+    
+    if (isAllowed) {
       console.log('✅ CORS: Allowing production origin:', origin);
       return callback(null, true);
     }
     
-    // Log and allow unknown origins (you can change this to false in production)
+    // Log and allow unknown origins (set to false in strict production)
     console.log('⚠️ CORS: Allowing unknown origin:', origin);
-    callback(null, true); // Set to false to block unknown origins
+    callback(null, true);
   },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
@@ -67,26 +68,34 @@ const corsOptions = {
     'X-Requested-With',
     'Accept',
     'Origin',
-    'Access-Control-Allow-Origin'
+    'Access-Control-Allow-Origin',
+    'Access-Control-Allow-Credentials'
   ],
   exposedHeaders: ['Content-Range', 'X-Content-Range'],
-  maxAge: 86400, // 24 hours
+  maxAge: 86400,
   preflightContinue: false,
   optionsSuccessStatus: 204
 };
 
-// Apply CORS
+// Apply CORS globally
 app.use(cors(corsOptions));
 
-// Handle preflight OPTIONS requests
+// Handle preflight OPTIONS requests for all routes
 app.options('*', cors(corsOptions));
+
+// Security middleware
+app.use(helmet({
+  crossOriginResourcePolicy: { policy: "cross-origin" },
+  crossOriginOpenerPolicy: { policy: "same-origin-allow-popups" }
+}));
+
 // Body parsing middleware
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
 // Rate limiting
 const limiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
+  windowMs: 15 * 60 * 1000,
   max: 100,
   message: 'Too many requests from this IP, please try again later.'
 });
@@ -106,12 +115,13 @@ mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/kromium-h
   process.exit(1);
 });
 
-// Routes
+// API Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/appointments', appointmentRoutes);
 app.use('/api/doctors', doctorRoutes);
 app.use('/api/medical-records', medicalRecordRoutes);
+app.use('/api/chat', chatRoutes);
 
 // Health check endpoint
 app.get('/api/health', (req, res) => {
@@ -120,7 +130,8 @@ app.get('/api/health', (req, res) => {
     message: 'Kromium Health API is running',
     timestamp: new Date().toISOString(),
     environment: process.env.NODE_ENV || 'development',
-    cors: 'enabled'
+    cors: 'enabled',
+    openaiConfigured: !!process.env.OPENAI_API_KEY
   });
 });
 
@@ -129,17 +140,19 @@ app.get('/', (req, res) => {
   res.json({
     message: 'Welcome to Kromium Health API',
     version: '1.0.0',
+    status: 'operational',
     endpoints: {
       health: '/api/health',
       auth: '/api/auth',
       users: '/api/users',
       doctors: '/api/doctors',
       appointments: '/api/appointments',
-      medicalRecords: '/api/medical-records'
+      medicalRecords: '/api/medical-records',
+      chat: '/api/chat'
     }
   });
 });
-app.use('/api/chat', chatRoutes);
+
 // Error handling middleware (must be after routes)
 app.use(errorHandler);
 
@@ -158,7 +171,8 @@ const server = app.listen(PORT, () => {
   console.log(`\n🚀 Server running on port ${PORT}`);
   console.log(`🌍 Environment: ${process.env.NODE_ENV || 'development'}`);
   console.log(`📡 API URL: http://localhost:${PORT}`);
-  console.log(`🔒 CORS: Enabled for localhost and production domains`);
+  console.log(`🔒 CORS: Enabled for all configured domains`);
+  console.log(`🤖 OpenAI: ${process.env.OPENAI_API_KEY ? 'Configured' : 'Not Configured'}`);
   console.log(`🏥 Kromium Health Backend is ready!\n`);
 });
 

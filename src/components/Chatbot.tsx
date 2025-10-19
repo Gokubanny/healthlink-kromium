@@ -8,7 +8,7 @@ interface Message {
   timestamp: Date;
 }
 
-// Configure your backend API URL
+// Backend API URL - NO /api at the end
 const API_URL = import.meta.env.VITE_API_URL || 'https://healthlink-kromium-backend-srv-d3qgv7ali9vc73cbr430.onrender.com';
 
 const KromiumChatbot: React.FC = () => {
@@ -20,35 +20,48 @@ const KromiumChatbot: React.FC = () => {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
+  // Load chat history on mount
   useEffect(() => {
     const savedMessages = localStorage.getItem('kromium-chat-history');
     if (savedMessages) {
-      const parsed = JSON.parse(savedMessages);
-      setMessages(parsed.map((msg: any) => ({
-        ...msg,
-        timestamp: new Date(msg.timestamp)
-      })));
+      try {
+        const parsed = JSON.parse(savedMessages);
+        setMessages(parsed.map((msg: any) => ({
+          ...msg,
+          timestamp: new Date(msg.timestamp)
+        })));
+      } catch (error) {
+        console.error('Error loading chat history:', error);
+        initializeGreeting();
+      }
     } else {
-      const greeting: Message = {
-        id: Date.now().toString(),
-        text: "👋 Hi, I'm Kromium Assistant! I can help you with your healthcare questions, booking a consultation, or learning about our services.",
-        sender: 'bot',
-        timestamp: new Date()
-      };
-      setMessages([greeting]);
+      initializeGreeting();
     }
   }, []);
 
+  const initializeGreeting = () => {
+    const greeting: Message = {
+      id: Date.now().toString(),
+      text: "👋 Hi, I'm Kromium Assistant! I can help you with your healthcare questions, booking a consultation, or learning about our services.",
+      sender: 'bot',
+      timestamp: new Date()
+    };
+    setMessages([greeting]);
+  };
+
+  // Save chat history
   useEffect(() => {
     if (messages.length > 0) {
       localStorage.setItem('kromium-chat-history', JSON.stringify(messages));
     }
   }, [messages]);
 
+  // Auto-scroll to bottom
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, isTyping]);
 
+  // Focus input when chat opens
   useEffect(() => {
     if (isOpen && inputRef.current) {
       inputRef.current.focus();
@@ -71,6 +84,8 @@ const KromiumChatbot: React.FC = () => {
     setIsLoading(true);
 
     try {
+      console.log('Sending message to:', `${API_URL}/api/chat`);
+      
       const response = await fetch(`${API_URL}/api/chat`, {
         method: 'POST',
         headers: {
@@ -79,13 +94,17 @@ const KromiumChatbot: React.FC = () => {
         body: JSON.stringify({ message: userMessage.text }),
       });
 
-      const data = await response.json();
-      
-      setIsTyping(false);
+      console.log('Response status:', response.status);
 
       if (!response.ok) {
-        throw new Error(data.message || 'Failed to get response');
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.message || `Server error: ${response.status}`);
       }
+
+      const data = await response.json();
+      console.log('Response data:', data);
+      
+      setIsTyping(false);
       
       const botMessage: Message = {
         id: (Date.now() + 1).toString(),
@@ -98,9 +117,20 @@ const KromiumChatbot: React.FC = () => {
     } catch (error) {
       console.error('Chatbot error:', error);
       setIsTyping(false);
+      
+      let errorText = "Sorry, I'm having trouble connecting. Please try again later.";
+      
+      if (error instanceof Error) {
+        if (error.message.includes('Failed to fetch')) {
+          errorText = "Unable to connect to the server. Please check your internet connection.";
+        } else if (error.message.includes('CORS')) {
+          errorText = "Connection blocked. Please contact support.";
+        }
+      }
+      
       const errorMessage: Message = {
         id: (Date.now() + 1).toString(),
-        text: "Sorry, I'm having trouble connecting. Please try again later.",
+        text: errorText,
         sender: 'bot',
         timestamp: new Date()
       };
@@ -122,20 +152,16 @@ const KromiumChatbot: React.FC = () => {
   };
 
   const clearHistory = () => {
-    const greeting: Message = {
-      id: Date.now().toString(),
-      text: "👋 Hi, I'm Kromium Assistant! I can help you with your healthcare questions, booking a consultation, or learning about our services.",
-      sender: 'bot',
-      timestamp: new Date()
-    };
-    setMessages([greeting]);
+    initializeGreeting();
     localStorage.removeItem('kromium-chat-history');
   };
 
   return (
     <div className="fixed bottom-4 right-4 z-50">
+      {/* Chat Window */}
       {isOpen && (
         <div className="mb-4 w-[380px] h-[600px] bg-white rounded-2xl shadow-2xl flex flex-col animate-in slide-in-from-bottom-4 duration-300">
+          {/* Header */}
           <div className="bg-gradient-to-r from-blue-600 to-blue-700 text-white p-4 rounded-t-2xl flex items-center justify-between">
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 bg-white/20 rounded-full flex items-center justify-center">
@@ -155,6 +181,7 @@ const KromiumChatbot: React.FC = () => {
             </button>
           </div>
 
+          {/* Messages Container */}
           <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-gray-50">
             {messages.map((message) => (
               <div
@@ -178,6 +205,7 @@ const KromiumChatbot: React.FC = () => {
               </div>
             ))}
 
+            {/* Typing Indicator */}
             {isTyping && (
               <div className="flex justify-start">
                 <div className="bg-white rounded-2xl rounded-bl-sm px-4 py-3 shadow-sm border border-gray-100">
@@ -192,6 +220,7 @@ const KromiumChatbot: React.FC = () => {
             <div ref={messagesEndRef} />
           </div>
 
+          {/* Input Area */}
           <div className="p-4 bg-white border-t border-gray-200 rounded-b-2xl">
             <div className="flex gap-2">
               <input
@@ -203,6 +232,7 @@ const KromiumChatbot: React.FC = () => {
                 placeholder="Ask me about healthcare..."
                 className="flex-1 px-4 py-2.5 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
                 disabled={isLoading}
+                maxLength={500}
               />
               <button
                 onClick={handleSendMessage}
@@ -227,6 +257,7 @@ const KromiumChatbot: React.FC = () => {
         </div>
       )}
 
+      {/* Chat Bubble Button */}
       <button
         onClick={toggleChat}
         className={`bg-gradient-to-r from-blue-600 to-blue-700 text-white w-14 h-14 rounded-full shadow-lg hover:shadow-xl transform hover:scale-110 transition-all duration-300 flex items-center justify-center ${
