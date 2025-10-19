@@ -37,7 +37,7 @@ app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 // ============================================
 // STEP 3: DATABASE CONNECTION
 // ============================================
-const MONGODB_URI = process.env.MONGODB_URI || 'mongodb+srv://omatulemarvellous:omatule721@cluster0.gf4mhtp.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0';
+const MONGODB_URI = process.env.MONGODB_URI || 'mongodb+srv://omatulemarvellous721:marvellous@cluster0.ilwg89x.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0';
 
 mongoose.connect(MONGODB_URI, {
   useNewUrlParser: true,
