@@ -1,9 +1,10 @@
 // ============================================
-// FILE: backend/server.js (UPDATED WITH ENHANCED CORS)
+// FILE: backend/server.js (UPDATED WITH CHAT ROUTES)
 // ============================================
 const express = require('express');
 const mongoose = require('mongoose');
 const doctorsRoutes = require('./routes/doctors');
+const chatRoutes = require('./routes/chat'); // ADD THIS LINE
 const User = require('./models/User');
 
 const app = express();
@@ -58,6 +59,7 @@ mongoose.connect(MONGODB_URI, {
 // STEP 4: ROUTES
 // ============================================
 app.use('/api/doctors', doctorsRoutes);
+app.use('/api/chat', chatRoutes); // ADD THIS LINE
 
 // ============================================
 // STEP 5: HEALTH CHECK ENDPOINT
@@ -229,54 +231,7 @@ app.post('/api/auth/login', async (req, res) => {
 });
 
 // ============================================
-// STEP 8: CHAT ENDPOINT WITH EXPLICIT CORS
-// ============================================
-app.post('/api/chat', async (req, res) => {
-  try {
-    console.log('💬 Chat request received');
-    console.log('📝 Request headers:', req.headers);
-    
-    const { message } = req.body;
-    
-    if (!message) {
-      return res.status(400).json({
-        success: false,
-        message: 'Message is required'
-      });
-    }
-    
-    console.log('📝 User message:', message);
-    
-    // Mock AI response
-    const responses = [
-      "I understand you're looking for medical assistance. How can I help you today?",
-      "I'm here to help with your health questions. What symptoms are you experiencing?",
-      "Thank you for reaching out. Could you tell me more about your health concern?",
-      "I can provide general health information. What would you like to know?"
-    ];
-    
-    const randomResponse = responses[Math.floor(Math.random() * responses.length)];
-    
-    console.log('🤖 AI response:', randomResponse);
-    
-    res.json({
-      success: true,
-      response: randomResponse,
-      timestamp: new Date().toISOString()
-    });
-    
-  } catch (error) {
-    console.error('❌ Chat error:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Chat service unavailable',
-      error: error.message
-    });
-  }
-});
-
-// ============================================
-// STEP 9: ROOT ENDPOINT
+// STEP 8: ROOT ENDPOINT
 // ============================================
 app.get('/', (req, res) => {
   res.json({
@@ -295,13 +250,14 @@ app.get('/', (req, res) => {
       login: 'POST /api/auth/login',
       doctors: 'GET /api/doctors',
       specialties: 'GET /api/doctors/specialties/list',
-      chat: 'POST /api/chat'
+      chat: 'POST /api/chat',
+      chatHealth: 'GET /api/chat/health'
     }
   });
 });
 
 // ============================================
-// STEP 10: 404 HANDLER
+// STEP 9: 404 HANDLER
 // ============================================
 app.use('*', (req, res) => {
   console.log('❌ 404 - Route not found:', req.originalUrl);
@@ -316,13 +272,14 @@ app.use('*', (req, res) => {
       'POST /api/auth/login',
       'GET /api/doctors',
       'GET /api/doctors/specialties/list',
-      'POST /api/chat'
+      'POST /api/chat',
+      'GET /api/chat/health'
     ]
   });
 });
 
 // ============================================
-// STEP 11: ERROR HANDLING MIDDLEWARE
+// STEP 10: ERROR HANDLING MIDDLEWARE
 // ============================================
 app.use((error, req, res, next) => {
   console.error('🚨 Unhandled Error:', error);
@@ -334,7 +291,7 @@ app.use((error, req, res, next) => {
 });
 
 // ============================================
-// STEP 12: START SERVER
+// STEP 11: START SERVER
 // ============================================
 const PORT = process.env.PORT || 5000;
 
@@ -356,6 +313,7 @@ app.listen(PORT, '0.0.0.0', () => {
   console.log('   GET  /api/doctors');
   console.log('   GET  /api/doctors/specialties/list');
   console.log('   POST /api/chat');
+  console.log('   GET  /api/chat/health');
   console.log('');
   console.log('✅ Server is READY for all requests!');
 });
