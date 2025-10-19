@@ -1,10 +1,9 @@
 // ============================================
-// FILE: backend/server.js (UPDATED WITH CHAT ROUTES)
+// FILE: backend/server.js (UPDATED WITH DEBUGGING)
 // ============================================
 const express = require('express');
 const mongoose = require('mongoose');
 const doctorsRoutes = require('./routes/doctors');
-const chatRoutes = require('./routes/chat'); // ADD THIS LINE
 const User = require('./models/User');
 
 const app = express();
@@ -56,10 +55,45 @@ mongoose.connect(MONGODB_URI, {
 });
 
 // ============================================
-// STEP 4: ROUTES
+// STEP 4: ROUTES WITH ERROR HANDLING
 // ============================================
 app.use('/api/doctors', doctorsRoutes);
-app.use('/api/chat', chatRoutes); // ADD THIS LINE
+
+// Chat routes with better error handling
+console.log('🔄 Attempting to load chat routes...');
+try {
+  const chatRoutes = require('./routes/chat');
+  app.use('/api/chat', chatRoutes);
+  console.log('✅ Chat routes loaded successfully');
+} catch (error) {
+  console.error('❌ Failed to load chat routes:', error.message);
+  console.log('💡 Creating fallback chat routes...');
+  
+  // Fallback chat routes
+  const express = require('express');
+  const fallbackChatRouter = express.Router();
+  
+  fallbackChatRouter.post('/', (req, res) => {
+    console.log('💬 Fallback chat endpoint called');
+    res.json({
+      success: true,
+      reply: "Hello! I'm Kromium Assistant. I'm here to help with your health questions. (Fallback Mode)",
+      timestamp: new Date().toISOString()
+    });
+  });
+  
+  fallbackChatRouter.get('/health', (req, res) => {
+    res.json({
+      success: true,
+      status: 'fallback',
+      service: 'Kromium Assistant',
+      message: 'Using fallback chat service - main chat routes failed to load'
+    });
+  });
+  
+  app.use('/api/chat', fallbackChatRouter);
+  console.log('✅ Fallback chat routes created');
+}
 
 // ============================================
 // STEP 5: HEALTH CHECK ENDPOINT

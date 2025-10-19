@@ -1,5 +1,5 @@
 // ============================================
-// FILE: backend/routes/chat.js
+// FILE: backend/routes/chat.js (SINGLE COPY)
 // ============================================
 const express = require('express');
 const router = express.Router();
