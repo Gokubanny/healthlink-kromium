@@ -9,7 +9,7 @@ interface Message {
 }
 
 // Configure your backend API URL
-const API_URL = import.meta.env.VITE_API_URL || 'http://https://healthlink-kromium-backend-k5ig.onrender.com:5000';
+const API_URL = import.meta.env.VITE_API_URL || 'https://healthlink-kromium-backend-srv-d3qgv7ali9vc73cbr430.onrender.com';
 
 const KromiumChatbot: React.FC = () => {
   const [isOpen, setIsOpen] = useState(false);
