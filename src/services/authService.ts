@@ -1,7 +1,7 @@
 // ============================================
 // FILE: src/services/authService.ts
 // ============================================
-import api, { testCorsConnection } from '@/lib/api';
+import api from '@/lib/api';
 
 export interface RegisterData {
   firstName: string;
@@ -16,79 +16,71 @@ export interface RegisterData {
   medicalSchool?: string;
 }
 
-export interface LoginData {
-  email: string;
-  password: string;
-}
-
 export interface AuthResponse {
   success: boolean;
   token: string;
-  user: {
-    id: string;
-    firstName: string;
-    lastName: string;
-    email: string;
-    role: string;
-    phone?: string;
-    specialty?: string;
-    profilePicture?: string;
-    isVerified?: boolean;
-  };
+  user: any;
+  message?: string;
 }
 
 class AuthService {
   async register(data: RegisterData): Promise<AuthResponse> {
     try {
-      console.log('🔐 Registering user:', { ...data, password: '***' });
-      
-      // Test CORS first
-      await testCorsConnection();
+      console.log('👤 Starting registration...');
       
       const response = await api.post('/auth/register', data);
       
       if (response.data.success && response.data.token) {
         localStorage.setItem('token', response.data.token);
         localStorage.setItem('user', JSON.stringify(response.data.user));
-        console.log('✅ Registration successful, token stored');
+        console.log('✅ Registration successful - token stored');
       }
       
       return response.data;
-    } catch (error) {
+    } catch (error: any) {
       console.error('❌ Registration failed:', error);
-      throw error;
+      
+      let message = 'Registration failed';
+      
+      if (error.response?.data?.message) {
+        message = error.response.data.message;
+      } else if (error.message) {
+        message = error.message;
+      } else if (error.code === 'ERR_NETWORK') {
+        message = 'Cannot connect to server. Please check your connection.';
+      }
+      
+      throw new Error(message);
     }
   }
 
-  async login(data: LoginData): Promise<AuthResponse> {
+  async login(email: string, password: string): Promise<AuthResponse> {
     try {
-      console.log('🔐 Logging in user:', { ...data, password: '***' });
+      console.log('🔐 Starting login...');
       
-      // Test CORS first
-      await testCorsConnection();
-      
-      const response = await api.post('/auth/login', data);
+      const response = await api.post('/auth/login', { email, password });
       
       if (response.data.success && response.data.token) {
         localStorage.setItem('token', response.data.token);
         localStorage.setItem('user', JSON.stringify(response.data.user));
-        console.log('✅ Login successful, token stored');
+        console.log('✅ Login successful - token stored');
       }
       
       return response.data;
-    } catch (error) {
+    } catch (error: any) {
       console.error('❌ Login failed:', error);
-      throw error;
-    }
-  }
-
-  async getCurrentUser() {
-    try {
-      const response = await api.get('/auth/me');
-      return response.data;
-    } catch (error) {
-      console.error('❌ Get current user failed:', error);
-      throw error;
+      
+      let message = 'Login failed';
+      
+      if (error.response?.data?.message) {
+        message = error.response.data.message;
+      } else if (error.message) {
+        message = error.message;
+      } else if (error.code === 'ERR_NETWORK') {
+        message = 'Cannot connect to server. Please check your connection.';
+      }
+      
+      throw new Error(message);
     }
   }
 

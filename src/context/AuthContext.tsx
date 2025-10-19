@@ -1,5 +1,5 @@
 // ============================================
-// FILE: src/context/AuthContext.tsx (UPDATED)
+// FILE: src/context/AuthContext.tsx
 // ============================================
 import { createContext, useContext, useState, useEffect, ReactNode } from "react";
 import { useNavigate } from "react-router-dom";
@@ -14,9 +14,6 @@ interface User {
   role: "patient" | "doctor";
   phone?: string;
   specialty?: string;
-  licenseNumber?: string;
-  yearsOfExperience?: string;
-  medicalSchool?: string;
   profilePicture?: string;
   isVerified?: boolean;
 }
@@ -39,7 +36,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const navigate = useNavigate();
 
   useEffect(() => {
-    // Check for stored user on mount
     const storedUser = localStorage.getItem("user");
     const token = localStorage.getItem("token");
     
@@ -51,13 +47,12 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   const login = async (email: string, password: string) => {
     try {
-      const response = await authService.login({ email, password });
+      const response = await authService.login(email, password);
       
       if (response.success) {
         setUser(response.user as User);
-        toast.success("Login successful!");
+        toast.success("Login successful! 🎉");
         
-        // Navigate based on role
         if (response.user.role === "doctor") {
           navigate("/dashboard/doctor");
         } else {
@@ -65,8 +60,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         }
       }
     } catch (error: any) {
-      const message = error.response?.data?.message || "Login failed. Please try again.";
-      toast.error(message);
+      toast.error(error.message || "Login failed. Please try again.");
       throw error;
     }
   };
@@ -77,9 +71,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       
       if (response.success) {
         setUser(response.user as User);
-        toast.success("Account created successfully!");
+        toast.success("Account created successfully! 🎉");
         
-        // Navigate based on role
         if (response.user.role === "doctor") {
           navigate("/dashboard/doctor");
         } else {
@@ -87,8 +80,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         }
       }
     } catch (error: any) {
-      const message = error.response?.data?.message || "Registration failed. Please try again.";
-      toast.error(message);
+      toast.error(error.message || "Registration failed. Please try again.");
       throw error;
     }
   };
@@ -109,7 +101,15 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   };
 
   return (
-    <AuthContext.Provider value={{ user, isAuthenticated: !!user, login, signup, logout, updateProfile, isLoading }}>
+    <AuthContext.Provider value={{ 
+      user, 
+      isAuthenticated: !!user, 
+      login, 
+      signup, 
+      logout, 
+      updateProfile, 
+      isLoading 
+    }}>
       {children}
     </AuthContext.Provider>
   );

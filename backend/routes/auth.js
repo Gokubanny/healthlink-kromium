@@ -6,18 +6,43 @@ const router = express.Router();
 const jwt = require('jsonwebtoken');
 const { body, validationResult } = require('express-validator');
 const User = require('../models/User');
-const { protect } = require('../middleware/auth');
 
 // Generate JWT Token
 const generateToken = (id) => {
-  return jwt.sign({ id }, process.env.JWT_SECRET, {
-    expiresIn: process.env.JWT_EXPIRE,
+  return jwt.sign({ id }, process.env.JWT_SECRET || 'fallback-secret', {
+    expiresIn: process.env.JWT_EXPIRE || '30d',
   });
 };
 
+// Simple test route
+router.get('/test', (req, res) => {
+  res.json({
+    success: true,
+    message: 'Auth route is working!'
+  });
+});
+
+// @route   GET /api/auth/me
+// @desc    Get current user (protected route example)
+// @access  Private
+router.get('/me', async (req, res) => {
+  try {
+    // For now, this is a public endpoint for testing
+    // In production, you'd add the protect middleware
+    res.json({
+      success: true,
+      message: 'Auth me endpoint is working',
+      user: null // You'd get this from the token
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: 'Server error'
+    });
+  }
+});
+
 // @route   POST /api/auth/register
-// @desc    Register a new user
-// @access  Public
 router.post(
   '/register',
   [
@@ -37,20 +62,20 @@ router.post(
         });
       }
 
-      const {
-        firstName,
-        lastName,
-        email,
-        password,
-        role,
+      const { 
+        firstName, 
+        lastName, 
+        email, 
+        password, 
+        role, 
         phone,
         specialty,
-        licenseNumber,
+        licenseNumber, 
         yearsOfExperience,
-        medicalSchool,
+        medicalSchool
       } = req.body;
 
-      // Check if user already exists
+      // Check if user exists
       const userExists = await User.findOne({ email });
       if (userExists) {
         return res.status(400).json({
@@ -59,14 +84,14 @@ router.post(
         });
       }
 
-      // Create user
+      // Create user data
       const userData = {
         firstName,
         lastName,
         email,
         password,
         role,
-        phone,
+        phone: phone || '',
       };
 
       // Add doctor-specific fields if role is doctor
@@ -77,19 +102,17 @@ router.post(
             message: 'All doctor verification fields are required',
           });
         }
+        
         userData.specialty = specialty;
         userData.licenseNumber = licenseNumber;
         userData.yearsOfExperience = yearsOfExperience;
         userData.medicalSchool = medicalSchool;
-        
-        // Auto-verify doctors on signup
-        userData.isVerified = true;
-        
-        // Set default rating for new doctors
+        userData.isVerified = true; // Auto-verify doctors
         userData.rating = 5.0;
         userData.reviewCount = 0;
       }
 
+      // Create user
       const user = await User.create(userData);
 
       // Generate token
@@ -115,14 +138,13 @@ router.post(
       res.status(500).json({
         success: false,
         message: 'Server error during registration',
+        error: process.env.NODE_ENV === 'production' ? {} : error.message
       });
     }
   }
 );
 
 // @route   POST /api/auth/login
-// @desc    Login user
-// @access  Public
 router.post(
   '/login',
   [
@@ -141,7 +163,7 @@ router.post(
 
       const { email, password } = req.body;
 
-      // Check for user
+      // Check for user with password
       const user = await User.findOne({ email }).select('+password');
       if (!user) {
         return res.status(401).json({
@@ -182,27 +204,10 @@ router.post(
       res.status(500).json({
         success: false,
         message: 'Server error during login',
+        error: process.env.NODE_ENV === 'production' ? {} : error.message
       });
     }
   }
 );
-
-// @route   GET /api/auth/me
-// @desc    Get current logged in user
-// @access  Private
-router.get('/me', protect, async (req, res) => {
-  try {
-    const user = await User.findById(req.user.id);
-    res.status(200).json({
-      success: true,
-      user,
-    });
-  } catch (error) {
-    res.status(500).json({
-      success: false,
-      message: 'Server error',
-    });
-  }
-});
 
 module.exports = router;

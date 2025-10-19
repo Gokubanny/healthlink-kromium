@@ -20,7 +20,6 @@ const SignUp = () => {
     confirmPassword: "",
     role: "",
     phone: "",
-    // Doctor-specific fields
     specialty: "",
     licenseNumber: "",
     yearsOfExperience: "",
@@ -62,9 +61,8 @@ const SignUp = () => {
     try {
       await signup(formData);
       toast.success("Account created successfully!");
-      // Navigation is handled by useEffect
-    } catch (error) {
-      toast.error("Failed to create account. Please try again.");
+    } catch (error: any) {
+      toast.error(error.message || "Failed to create account");
       setIsLoading(false);
     }
   };
@@ -72,7 +70,6 @@ const SignUp = () => {
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-secondary via-background to-secondary p-4">
       <Card className="w-full max-w-md p-8 shadow-strong animate-scale-in">
-        {/* Logo */}
         <Link to="/" className="flex items-center justify-center gap-2 mb-8">
           <div className="bg-primary rounded-lg p-2">
             <Heart className="h-6 w-6 text-primary-foreground" fill="currentColor" />
@@ -86,6 +83,7 @@ const SignUp = () => {
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
+          {/* Form fields remain exactly the same as before */}
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label htmlFor="firstName">First Name</Label>
@@ -148,7 +146,6 @@ const SignUp = () => {
             </Select>
           </div>
 
-          {/* Doctor Verification Fields */}
           {formData.role === "doctor" && (
             <>
               <div className="space-y-2">
