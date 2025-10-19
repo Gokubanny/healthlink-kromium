@@ -1,26 +1,25 @@
 // ============================================
-// FILE: backend/server.js (DEFINITIVE CORS FIX)
+// FILE: backend/server.js (UPDATED WITH MONGODB & DOCTORS ROUTES)
 // ============================================
 const express = require('express');
+const mongoose = require('mongoose');
+const doctorsRoutes = require('./routes/doctors');
+const User = require('./models/User');
 
 const app = express();
 
 // ============================================
-// STEP 1: MANUAL CORS MIDDLEWARE - HANDLES EVERYTHING
+// STEP 1: MANUAL CORS MIDDLEWARE
 // ============================================
-
-// Global CORS handler - intercepts ALL requests
 app.use((req, res, next) => {
   console.log(`🌐 ${new Date().toISOString()} - ${req.method} ${req.path} - Origin: ${req.headers.origin || 'none'}`);
   
-  // Set CORS headers for EVERY response
   res.header('Access-Control-Allow-Origin', '*');
   res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS, PATCH, HEAD');
   res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization, Content-Length');
   res.header('Access-Control-Allow-Credentials', 'true');
   res.header('Access-Control-Max-Age', '86400');
   
-  // Handle preflight requests IMMEDIATELY
   if (req.method === 'OPTIONS') {
     console.log('✅ Preflight request handled successfully');
     return res.status(200).send();
@@ -32,30 +31,49 @@ app.use((req, res, next) => {
 // ============================================
 // STEP 2: Body Parsing
 // ============================================
-
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
 // ============================================
-// STEP 3: HEALTH CHECK ENDPOINT
+// STEP 3: DATABASE CONNECTION
 // ============================================
+const MONGODB_URI = process.env.MONGODB_URI || 'mongodb+srv://omatulemarvellous:omatule721@cluster0.gf4mhtp.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0';
 
+mongoose.connect(MONGODB_URI, {
+  useNewUrlParser: true,
+  useUnifiedTopology: true,
+})
+.then(() => {
+  console.log('✅ MongoDB Connected Successfully');
+})
+.catch((err) => {
+  console.error('❌ MongoDB Connection Error:', err);
+  process.exit(1);
+});
+
+// ============================================
+// STEP 4: ROUTES
+// ============================================
+app.use('/api/doctors', doctorsRoutes);
+
+// ============================================
+// STEP 5: HEALTH CHECK ENDPOINT
+// ============================================
 app.get('/api/health', (req, res) => {
-  console.log('✅ Health check - CORS headers should be set');
   res.json({ 
     success: true,
     status: 'OK',
     message: '🚀 Kromium Health API Server is RUNNING!',
     timestamp: new Date().toISOString(),
     cors: 'ENABLED',
-    version: '2.0.0'
+    version: '2.0.0',
+    database: mongoose.connection.readyState === 1 ? 'Connected' : 'Disconnected'
   });
 });
 
 // ============================================
-// STEP 4: CORS TEST ENDPOINT
+// STEP 6: CORS TEST ENDPOINT
 // ============================================
-
 app.get('/api/cors-test', (req, res) => {
   console.log('✅ CORS test - Checking headers');
   res.json({
@@ -68,11 +86,11 @@ app.get('/api/cors-test', (req, res) => {
 });
 
 // ============================================
-// STEP 5: AUTH ENDPOINTS
+// STEP 7: AUTH ENDPOINTS (UPDATED WITH REAL DATABASE)
 // ============================================
 
 // REGISTER ENDPOINT
-app.post('/api/auth/register', (req, res) => {
+app.post('/api/auth/register', async (req, res) => {
   try {
     console.log('📝 Registration attempt received');
     
@@ -87,25 +105,32 @@ app.post('/api/auth/register', (req, res) => {
         message: 'Missing required fields'
       });
     }
-    
-    // Create mock user response
-    const user = {
-      id: 'user-' + Date.now(),
+
+    // Check if user already exists
+    const existingUser = await User.findOne({ email });
+    if (existingUser) {
+      return res.status(400).json({
+        success: false,
+        message: 'User already exists with this email'
+      });
+    }
+
+    // Create user
+    const user = await User.create({
       firstName,
       lastName,
       email,
+      password,
       role,
-      phone: phone || '',
-      specialty: specialty || '',
-      licenseNumber: licenseNumber || '',
-      yearsOfExperience: yearsOfExperience || '',
-      medicalSchool: medicalSchool || '',
-      isVerified: role === 'doctor',
-      profilePicture: '',
-      createdAt: new Date().toISOString()
-    };
-    
-    // Mock JWT token
+      phone,
+      specialty,
+      licenseNumber,
+      yearsOfExperience: parseInt(yearsOfExperience) || 0,
+      medicalSchool,
+      isVerified: role === 'doctor' // Auto-verify doctors for now
+    });
+
+    // Generate JWT token (you'll need to implement this properly)
     const token = 'jwt-token-' + Date.now();
     
     console.log('✅ User registered successfully');
@@ -114,7 +139,21 @@ app.post('/api/auth/register', (req, res) => {
       success: true,
       message: 'User registered successfully!',
       token,
-      user
+      user: {
+        id: user._id,
+        firstName: user.firstName,
+        lastName: user.lastName,
+        email: user.email,
+        role: user.role,
+        phone: user.phone,
+        specialty: user.specialty,
+        licenseNumber: user.licenseNumber,
+        yearsOfExperience: user.yearsOfExperience,
+        medicalSchool: user.medicalSchool,
+        isVerified: user.isVerified,
+        profilePicture: user.profilePicture,
+        createdAt: user.createdAt
+      }
     });
     
   } catch (error) {
@@ -128,7 +167,7 @@ app.post('/api/auth/register', (req, res) => {
 });
 
 // LOGIN ENDPOINT
-app.post('/api/auth/login', (req, res) => {
+app.post('/api/auth/login', async (req, res) => {
   try {
     console.log('🔐 Login attempt received');
     
@@ -140,19 +179,15 @@ app.post('/api/auth/login', (req, res) => {
         message: 'Email and password are required'
       });
     }
+
+    const user = await User.findOne({ email }).select('+password');
     
-    // Mock user
-    const user = {
-      id: 'user-12345',
-      firstName: 'Demo',
-      lastName: 'User',
-      email: email,
-      role: 'patient',
-      phone: '+1234567890',
-      isVerified: true,
-      profilePicture: '',
-      createdAt: new Date().toISOString()
-    };
+    if (!user || !(await user.matchPassword(password))) {
+      return res.status(401).json({
+        success: false,
+        message: 'Invalid email or password'
+      });
+    }
     
     // Mock JWT token
     const token = 'jwt-token-' + Date.now();
@@ -163,7 +198,21 @@ app.post('/api/auth/login', (req, res) => {
       success: true,
       message: 'Login successful!',
       token,
-      user
+      user: {
+        id: user._id,
+        firstName: user.firstName,
+        lastName: user.lastName,
+        email: user.email,
+        role: user.role,
+        phone: user.phone,
+        specialty: user.specialty,
+        licenseNumber: user.licenseNumber,
+        yearsOfExperience: user.yearsOfExperience,
+        medicalSchool: user.medicalSchool,
+        isVerified: user.isVerified,
+        profilePicture: user.profilePicture,
+        createdAt: user.createdAt
+      }
     });
     
   } catch (error) {
@@ -177,9 +226,8 @@ app.post('/api/auth/login', (req, res) => {
 });
 
 // ============================================
-// STEP 6: ROOT ENDPOINT
+// STEP 8: ROOT ENDPOINT
 // ============================================
-
 app.get('/', (req, res) => {
   res.json({
     success: true,
@@ -188,20 +236,22 @@ app.get('/', (req, res) => {
     status: 'operational',
     cors: 'fully-enabled',
     timestamp: new Date().toISOString(),
+    database: mongoose.connection.readyState === 1 ? 'Connected' : 'Disconnected',
     endpoints: {
       root: 'GET /',
       health: 'GET /api/health',
       corsTest: 'GET /api/cors-test',
       register: 'POST /api/auth/register',
-      login: 'POST /api/auth/login'
+      login: 'POST /api/auth/login',
+      doctors: 'GET /api/doctors',
+      specialties: 'GET /api/doctors/specialties/list'
     }
   });
 });
 
 // ============================================
-// STEP 7: 404 HANDLER
+// STEP 9: 404 HANDLER
 // ============================================
-
 app.use('*', (req, res) => {
   res.status(404).json({
     success: false,
@@ -211,31 +261,37 @@ app.use('*', (req, res) => {
       'GET /api/health',
       'GET /api/cors-test',
       'POST /api/auth/register',
-      'POST /api/auth/login'
+      'POST /api/auth/login',
+      'GET /api/doctors',
+      'GET /api/doctors/specialties/list'
     ]
   });
 });
 
 // ============================================
-// STEP 8: START SERVER
+// STEP 10: START SERVER
 // ============================================
-
 const PORT = process.env.PORT || 5000;
 
 app.listen(PORT, '0.0.0.0', () => {
   console.log('\n🚀 =================================');
   console.log(`✅ SERVER STARTED ON PORT ${PORT}`);
   console.log(`🌐 CORS: FULLY ENABLED`);
+  console.log(`🗄️  MongoDB: ${mongoose.connection.readyState === 1 ? 'CONNECTED' : 'DISCONNECTED'}`);
   console.log(`🔓 All origins allowed: *`);
   console.log(`📡 Preflight: HANDLED`);
   console.log('🚀 =================================\n');
   
-  console.log('🎯 TEST THESE ENDPOINTS:');
-  console.log('   https://healthlink-kromium-backend-k5ig.onrender.com/');
-  console.log('   https://healthlink-kromium-backend-k5ig.onrender.com/api/health');
-  console.log('   https://healthlink-kromium-backend-k5ig.onrender.com/api/cors-test');
+  console.log('🎯 AVAILABLE ENDPOINTS:');
+  console.log('   GET  /');
+  console.log('   GET  /api/health');
+  console.log('   GET  /api/cors-test');
+  console.log('   POST /api/auth/register');
+  console.log('   POST /api/auth/login');
+  console.log('   GET  /api/doctors');
+  console.log('   GET  /api/doctors/specialties/list');
   console.log('');
-  console.log('✅ Server is READY for CORS requests!');
+  console.log('✅ Server is READY for all requests!');
 });
 
 module.exports = app;
