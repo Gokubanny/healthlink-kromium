@@ -1,5 +1,5 @@
 // ============================================
-// FILE: backend/server.js (COMPLETE CORS FIX)
+// FILE: backend/server.js (COMPLETE CORS FIX - UPDATED)
 // ============================================
 const express = require('express');
 const mongoose = require('mongoose');
@@ -23,26 +23,28 @@ const chatRoutes = require('./routes/chat');
 const errorHandler = require('./middleware/errorHandler');
 
 const app = express();
+
 // ============================================
-// CORS FIX - COMPREHENSIVE SOLUTION
+// CORS FIX - COMPREHENSIVE SOLUTION (UPDATED)
 // ============================================
 
 // CORS middleware - MUST be before any routes
 app.use((req, res, next) => {
   const origin = req.headers.origin;
   
-  // Always allow these origins
+  // Always allow these origins - UPDATED WITH CORRECT URLS
   const allowedOrigins = [
     'http://localhost:8080',
     'http://localhost:5173',
     'http://localhost:5174',
     'http://localhost:3000',
-    'https://healthlink-kromium.onrender.com',
-    'https://healthlink-kromium-backend.onrender.com'
+    'https://healthlink-kromium.onrender.com',  // Frontend URL
+    'https://healthlink-kromium-backend.onrender.com',  // Backend URL
+    'https://healthlink-kromium-backend-k5ig.onrender.com'  // Alternative backend URL
   ];
   
   // Check if origin is allowed
-  if (origin && (allowedOrigins.includes(origin) || origin.includes('localhost') || origin.includes('127.0.0.1'))) {
+  if (origin && (allowedOrigins.includes(origin) || origin.includes('localhost') || origin.includes('127.0.0.1') || origin.includes('onrender.com'))) {
     res.setHeader('Access-Control-Allow-Origin', origin);
   } else if (!origin) {
     // Allow requests with no origin (like mobile apps or curl)
@@ -55,7 +57,7 @@ app.use((req, res, next) => {
   res.setHeader('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization, Access-Control-Allow-Origin, Access-Control-Allow-Credentials');
   res.setHeader('Access-Control-Max-Age', '86400'); // 24 hours
   
-  // Log CORS request
+  // Log CORS request for debugging
   console.log(`CORS Request: ${req.method} ${req.path} from origin: ${origin || 'no-origin'}`);
   
   // Handle preflight OPTIONS request
@@ -123,7 +125,7 @@ app.get('/api/health', (req, res) => {
       allowed: true
     },
     services: {
-      database: 'connected',
+      database: mongoose.connection.readyState === 1 ? 'connected' : 'disconnected',
       openai: !!process.env.OPENAI_API_KEY
     }
   });
@@ -178,13 +180,16 @@ const server = app.listen(PORT, () => {
   console.log(`\n🚀 Server running on port ${PORT}`);
   console.log(`🌍 Environment: ${process.env.NODE_ENV || 'development'}`);
   console.log(`📡 API URL: http://localhost:${PORT}`);
-  console.log(`🔒 CORS: MANUAL MIDDLEWARE - GUARANTEED TO WORK`);
+  console.log(`🔒 CORS: MANUAL MIDDLEWARE - ALL ONRENDER.COM DOMAINS ALLOWED`);
   console.log(`🌐 Allowed Origins:`);
   console.log(`   - http://localhost:8080`);
   console.log(`   - http://localhost:5173`);
   console.log(`   - http://localhost:5174`);
   console.log(`   - https://healthlink-kromium.onrender.com`);
+  console.log(`   - https://healthlink-kromium-backend.onrender.com`);
+  console.log(`   - https://healthlink-kromium-backend-k5ig.onrender.com`);
   console.log(`   - All localhost/127.0.0.1 variants`);
+  console.log(`   - All *.onrender.com domains`);
   console.log(`🏥 Kromium Health Backend is ready!\n`);
 });
 
