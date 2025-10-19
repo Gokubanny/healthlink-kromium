@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { MessageCircle, X, Send, Loader2 } from 'lucide-react';
+import { X, Send, Loader2 } from 'lucide-react';
 
 interface Message {
   id: string;
@@ -8,10 +8,10 @@ interface Message {
   timestamp: Date;
 }
 
-// Backend API URL - NO /api at the end
-const API_URL = import.meta.env.VITE_API_URL || 'https://healthlink-kromium-backend-srv-d3qgv7ali9vc73cbr430.onrender.com';
+// Always use the deployed backend URL
+const API_URL = 'https://healthlink-kromium-backend.onrender.com';
 
-const KromiumChatbot: React.FC = () => {
+const KromiumChatbot = () => {
   const [isOpen, setIsOpen] = useState(false);
   const [messages, setMessages] = useState<Message[]>([]);
   const [inputValue, setInputValue] = useState('');
@@ -20,7 +20,6 @@ const KromiumChatbot: React.FC = () => {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  // Load chat history on mount
   useEffect(() => {
     const savedMessages = localStorage.getItem('kromium-chat-history');
     if (savedMessages) {
@@ -42,26 +41,23 @@ const KromiumChatbot: React.FC = () => {
   const initializeGreeting = () => {
     const greeting: Message = {
       id: Date.now().toString(),
-      text: "👋 Hi, I'm Kromium Assistant! I can help you with your healthcare questions, booking a consultation, or learning about our services.",
+      text: "Hi I'm Lola, I'd like to ask some questions about your symptoms to understand how you're feeling and help you get the care you need.\n\nMy responses provides general health information and advice only. It does not give a medical diagnosis or replace an appointment with a medical professional.\n\nDo not use this service:\nIn an emergency (contact emergency services instead)\n\nMedical guidance changes quickly. We aim to give the latest information but this may not always be possible.\n\nThe information given is for Nigerian residents only. If you live outside Nigeria, please follow local or national health advice.\n\nType 'okay' to proceed",
       sender: 'bot',
       timestamp: new Date()
     };
     setMessages([greeting]);
   };
 
-  // Save chat history
   useEffect(() => {
     if (messages.length > 0) {
       localStorage.setItem('kromium-chat-history', JSON.stringify(messages));
     }
   }, [messages]);
 
-  // Auto-scroll to bottom
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, isTyping]);
 
-  // Focus input when chat opens
   useEffect(() => {
     if (isOpen && inputRef.current) {
       inputRef.current.focus();
@@ -84,7 +80,7 @@ const KromiumChatbot: React.FC = () => {
     setIsLoading(true);
 
     try {
-      console.log('Sending message to:', `${API_URL}/api/chat`);
+      console.log('Sending to:', `${API_URL}/api/chat`);
       
       const response = await fetch(`${API_URL}/api/chat`, {
         method: 'POST',
@@ -118,19 +114,9 @@ const KromiumChatbot: React.FC = () => {
       console.error('Chatbot error:', error);
       setIsTyping(false);
       
-      let errorText = "Sorry, I'm having trouble connecting. Please try again later.";
-      
-      if (error instanceof Error) {
-        if (error.message.includes('Failed to fetch')) {
-          errorText = "Unable to connect to the server. Please check your internet connection.";
-        } else if (error.message.includes('CORS')) {
-          errorText = "Connection blocked. Please contact support.";
-        }
-      }
-      
       const errorMessage: Message = {
         id: (Date.now() + 1).toString(),
-        text: errorText,
+        text: "Sorry, I'm having trouble connecting. Please try again later.",
         sender: 'bot',
         timestamp: new Date()
       };
@@ -147,68 +133,56 @@ const KromiumChatbot: React.FC = () => {
     }
   };
 
-  const toggleChat = () => {
-    setIsOpen(!isOpen);
-  };
-
-  const clearHistory = () => {
-    initializeGreeting();
-    localStorage.removeItem('kromium-chat-history');
-  };
-
   return (
     <div className="fixed bottom-4 right-4 z-50">
-      {/* Chat Window */}
       {isOpen && (
-        <div className="mb-4 w-[380px] h-[600px] bg-white rounded-2xl shadow-2xl flex flex-col animate-in slide-in-from-bottom-4 duration-300">
+        <div className="mb-4 w-[380px] h-[600px] bg-white rounded-lg shadow-2xl flex flex-col animate-in slide-in-from-bottom-4 duration-300">
           {/* Header */}
-          <div className="bg-gradient-to-r from-blue-600 to-blue-700 text-white p-4 rounded-t-2xl flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 bg-white/20 rounded-full flex items-center justify-center">
-                <MessageCircle className="w-5 h-5" />
-              </div>
-              <div>
-                <h3 className="font-semibold text-lg">Kromium Assistant</h3>
-                <p className="text-xs text-blue-100">Healthcare Support</p>
-              </div>
-            </div>
+          <div className="bg-[#E74856] text-white p-4 rounded-t-lg flex items-center justify-between">
+            <h3 className="font-semibold text-lg">Dr. Lola</h3>
             <button
-              onClick={toggleChat}
-              className="hover:bg-white/20 p-2 rounded-lg transition-colors"
+              onClick={() => setIsOpen(false)}
+              className="hover:bg-white/20 p-1 rounded transition-colors"
               aria-label="Close chat"
             >
               <X className="w-5 h-5" />
             </button>
           </div>
 
-          {/* Messages Container */}
+          {/* Messages */}
           <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-gray-50">
             {messages.map((message) => (
-              <div
-                key={message.id}
-                className={`flex ${message.sender === 'user' ? 'justify-end' : 'justify-start'}`}
-              >
-                <div
-                  className={`max-w-[80%] rounded-2xl px-4 py-2.5 ${
-                    message.sender === 'user'
-                      ? 'bg-blue-600 text-white rounded-br-sm'
-                      : 'bg-white text-gray-800 rounded-bl-sm shadow-sm border border-gray-100'
-                  }`}
-                >
+              <div key={message.id} className={`flex ${message.sender === 'user' ? 'justify-end' : 'justify-start'}`}>
+                {message.sender === 'bot' && (
+                  <div className="flex-shrink-0 mr-3">
+                    <div className="w-8 h-8 bg-gray-400 rounded-full flex items-center justify-center">
+                      <svg className="w-5 h-5 text-white" fill="currentColor" viewBox="0 0 20 20">
+                        <path d="M10 12a2 2 0 100-4 2 2 0 000 4z"/>
+                        <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm0-2a6 6 0 100-12 6 6 0 000 12z" clipRule="evenodd"/>
+                      </svg>
+                    </div>
+                  </div>
+                )}
+                <div className={`max-w-[75%] ${message.sender === 'user' ? 'bg-[#0F62FE] text-white' : 'bg-white text-gray-800 shadow-sm'} rounded-lg px-4 py-3`}>
                   <p className="text-sm leading-relaxed whitespace-pre-wrap">{message.text}</p>
-                  <span className={`text-xs mt-1 block ${
-                    message.sender === 'user' ? 'text-blue-100' : 'text-gray-400'
-                  }`}>
+                  <span className={`text-xs mt-1 block ${message.sender === 'user' ? 'text-blue-100' : 'text-gray-400'}`}>
                     {message.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                   </span>
                 </div>
               </div>
             ))}
 
-            {/* Typing Indicator */}
             {isTyping && (
               <div className="flex justify-start">
-                <div className="bg-white rounded-2xl rounded-bl-sm px-4 py-3 shadow-sm border border-gray-100">
+                <div className="flex-shrink-0 mr-3">
+                  <div className="w-8 h-8 bg-gray-400 rounded-full flex items-center justify-center">
+                    <svg className="w-5 h-5 text-white" fill="currentColor" viewBox="0 0 20 20">
+                      <path d="M10 12a2 2 0 100-4 2 2 0 000 4z"/>
+                      <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm0-2a6 6 0 100-12 6 6 0 000 12z" clipRule="evenodd"/>
+                    </svg>
+                  </div>
+                </div>
+                <div className="bg-white rounded-lg px-4 py-3 shadow-sm">
                   <div className="flex gap-1.5">
                     <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
                     <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
@@ -220,8 +194,8 @@ const KromiumChatbot: React.FC = () => {
             <div ref={messagesEndRef} />
           </div>
 
-          {/* Input Area */}
-          <div className="p-4 bg-white border-t border-gray-200 rounded-b-2xl">
+          {/* Input */}
+          <div className="p-4 bg-white border-t rounded-b-lg">
             <div className="flex gap-2">
               <input
                 ref={inputRef}
@@ -229,44 +203,38 @@ const KromiumChatbot: React.FC = () => {
                 value={inputValue}
                 onChange={(e) => setInputValue(e.target.value)}
                 onKeyPress={handleKeyPress}
-                placeholder="Ask me about healthcare..."
-                className="flex-1 px-4 py-2.5 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+                placeholder="Type something..."
+                className="flex-1 px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-[#0F62FE] text-sm"
                 disabled={isLoading}
                 maxLength={500}
               />
               <button
                 onClick={handleSendMessage}
                 disabled={!inputValue.trim() || isLoading}
-                className="bg-blue-600 text-white p-2.5 rounded-xl hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                aria-label="Send message"
+                className="bg-[#0F62FE] text-white px-4 py-2 rounded hover:bg-[#0353E9] disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
+                aria-label="Send"
               >
-                {isLoading ? (
-                  <Loader2 className="w-5 h-5 animate-spin" />
-                ) : (
-                  <Send className="w-5 h-5" />
-                )}
+                {isLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
               </button>
             </div>
-            <button
-              onClick={clearHistory}
-              className="text-xs text-gray-500 hover:text-gray-700 mt-2 transition-colors"
-            >
-              Clear conversation
-            </button>
           </div>
         </div>
       )}
 
-      {/* Chat Bubble Button */}
+      {/* IBM Watson Style Button */}
       <button
-        onClick={toggleChat}
-        className={`bg-gradient-to-r from-blue-600 to-blue-700 text-white w-14 h-14 rounded-full shadow-lg hover:shadow-xl transform hover:scale-110 transition-all duration-300 flex items-center justify-center ${
-          isOpen ? 'scale-0' : 'scale-100'
-        }`}
-        aria-label="Open chat"
+        onClick={() => setIsOpen(!isOpen)}
+        className={`bg-[#DA1E28] hover:bg-[#BA1B23] text-white w-14 h-14 rounded-full shadow-lg hover:shadow-xl transition-all duration-300 flex items-center justify-center border-4 border-white ${isOpen ? 'scale-0' : 'scale-100'}`}
+        aria-label="Open the chat window"
       >
-        <MessageCircle className="w-6 h-6" />
-        <div className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 rounded-full animate-pulse" />
+        <svg 
+          className="w-6 h-6" 
+          fill="currentColor" 
+          viewBox="0 0 32 32"
+          xmlns="http://www.w3.org/2000/svg"
+        >
+          <path d="M22 4L22 6 26.586 6 20 12.586 21.414 14 28 7.414 28 12 30 12 30 4 22 4zM28 16v4a1.9965 1.9965 0 01-2 2H20l-4 7 1.7358 1 3.4288-6H26a3.9992 3.9992 0 004-4V16zM4 20V8A1.9965 1.9965 0 016 6H18V4H6A3.9986 3.9986 0 002 8V20a3.9992 3.9992 0 004 4h9V22H6A1.9965 1.9965 0 014 20z" />
+        </svg>
       </button>
     </div>
   );

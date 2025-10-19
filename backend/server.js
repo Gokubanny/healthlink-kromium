@@ -23,13 +23,15 @@ const chatRoutes = require('./routes/chat');
 const errorHandler = require('./middleware/errorHandler');
 
 const app = express();
-
 // ============================================
-// CORS FIX - ULTIMATE SOLUTION
+// CORS FIX - COMPREHENSIVE SOLUTION
 // ============================================
 
-// Manual CORS middleware - handles ALL requests including OPTIONS
+// CORS middleware - MUST be before any routes
 app.use((req, res, next) => {
+  const origin = req.headers.origin;
+  
+  // Always allow these origins
   const allowedOrigins = [
     'http://localhost:8080',
     'http://localhost:5173',
@@ -39,22 +41,27 @@ app.use((req, res, next) => {
     'https://healthlink-kromium-backend.onrender.com'
   ];
   
-  const origin = req.headers.origin;
-  
-  // Allow if origin is in allowed list or if it's a localhost origin
-  if (allowedOrigins.includes(origin) || (origin && origin.includes('localhost')) || (origin && origin.includes('127.0.0.1'))) {
+  // Check if origin is allowed
+  if (origin && (allowedOrigins.includes(origin) || origin.includes('localhost') || origin.includes('127.0.0.1'))) {
     res.setHeader('Access-Control-Allow-Origin', origin);
-    console.log(`✅ CORS: Allowed origin: ${origin}`);
+  } else if (!origin) {
+    // Allow requests with no origin (like mobile apps or curl)
+    res.setHeader('Access-Control-Allow-Origin', '*');
   }
   
+  // Set all necessary CORS headers
   res.setHeader('Access-Control-Allow-Credentials', 'true');
-  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS, PATCH');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, Accept, Origin, Access-Control-Allow-Origin');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS, PATCH, HEAD');
+  res.setHeader('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization, Access-Control-Allow-Origin, Access-Control-Allow-Credentials');
+  res.setHeader('Access-Control-Max-Age', '86400'); // 24 hours
   
-  // Handle OPTIONS preflight requests
+  // Log CORS request
+  console.log(`CORS Request: ${req.method} ${req.path} from origin: ${origin || 'no-origin'}`);
+  
+  // Handle preflight OPTIONS request
   if (req.method === 'OPTIONS') {
-    console.log(`✅ CORS: Handling OPTIONS preflight for ${req.path}`);
-    return res.status(200).end();
+    console.log(`✅ CORS Preflight: ${req.path}`);
+    return res.status(204).end();
   }
   
   next();
