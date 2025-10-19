@@ -1,5 +1,5 @@
 // ============================================
-// FILE: backend/server.js (UPDATED WITH CHAT ENDPOINT)
+// FILE: backend/server.js (UPDATED WITH ENHANCED CORS)
 // ============================================
 const express = require('express');
 const mongoose = require('mongoose');
@@ -9,20 +9,23 @@ const User = require('./models/User');
 const app = express();
 
 // ============================================
-// STEP 1: MANUAL CORS MIDDLEWARE
+// STEP 1: ENHANCED CORS MIDDLEWARE
 // ============================================
 app.use((req, res, next) => {
-  console.log(`🌐 ${new Date().toISOString()} - ${req.method} ${req.path} - Origin: ${req.headers.origin || 'none'}`);
+  const origin = req.headers.origin;
+  console.log(`🌐 ${new Date().toISOString()} - ${req.method} ${req.path} - Origin: ${origin || 'none'}`);
   
+  // Set CORS headers
   res.header('Access-Control-Allow-Origin', '*');
   res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS, PATCH, HEAD');
-  res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization, Content-Length');
+  res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization, Content-Length, X-Requested-With');
   res.header('Access-Control-Allow-Credentials', 'true');
   res.header('Access-Control-Max-Age', '86400');
   
+  // Handle preflight requests
   if (req.method === 'OPTIONS') {
-    console.log('✅ Preflight request handled successfully');
-    return res.status(200).send();
+    console.log('✅ Preflight request handled for:', req.path);
+    return res.status(200).end();
   }
   
   next();
@@ -86,7 +89,7 @@ app.get('/api/cors-test', (req, res) => {
 });
 
 // ============================================
-// STEP 7: AUTH ENDPOINTS (UPDATED WITH REAL DATABASE)
+// STEP 7: AUTH ENDPOINTS
 // ============================================
 
 // REGISTER ENDPOINT
@@ -127,10 +130,10 @@ app.post('/api/auth/register', async (req, res) => {
       licenseNumber,
       yearsOfExperience: parseInt(yearsOfExperience) || 0,
       medicalSchool,
-      isVerified: role === 'doctor' // Auto-verify doctors for now
+      isVerified: role === 'doctor'
     });
 
-    // Generate JWT token (you'll need to implement this properly)
+    // Generate JWT token
     const token = 'jwt-token-' + Date.now();
     
     console.log('✅ User registered successfully');
@@ -226,11 +229,12 @@ app.post('/api/auth/login', async (req, res) => {
 });
 
 // ============================================
-// STEP 8: CHAT ENDPOINT (NEW)
+// STEP 8: CHAT ENDPOINT WITH EXPLICIT CORS
 // ============================================
 app.post('/api/chat', async (req, res) => {
   try {
     console.log('💬 Chat request received');
+    console.log('📝 Request headers:', req.headers);
     
     const { message } = req.body;
     
@@ -243,7 +247,7 @@ app.post('/api/chat', async (req, res) => {
     
     console.log('📝 User message:', message);
     
-    // Mock AI response for now
+    // Mock AI response
     const responses = [
       "I understand you're looking for medical assistance. How can I help you today?",
       "I'm here to help with your health questions. What symptoms are you experiencing?",
@@ -252,6 +256,8 @@ app.post('/api/chat', async (req, res) => {
     ];
     
     const randomResponse = responses[Math.floor(Math.random() * responses.length)];
+    
+    console.log('🤖 AI response:', randomResponse);
     
     res.json({
       success: true,
@@ -298,6 +304,7 @@ app.get('/', (req, res) => {
 // STEP 10: 404 HANDLER
 // ============================================
 app.use('*', (req, res) => {
+  console.log('❌ 404 - Route not found:', req.originalUrl);
   res.status(404).json({
     success: false,
     message: `Route not found: ${req.originalUrl}`,
@@ -315,7 +322,19 @@ app.use('*', (req, res) => {
 });
 
 // ============================================
-// STEP 11: START SERVER
+// STEP 11: ERROR HANDLING MIDDLEWARE
+// ============================================
+app.use((error, req, res, next) => {
+  console.error('🚨 Unhandled Error:', error);
+  res.status(500).json({
+    success: false,
+    message: 'Internal server error',
+    error: error.message
+  });
+});
+
+// ============================================
+// STEP 12: START SERVER
 // ============================================
 const PORT = process.env.PORT || 5000;
 
