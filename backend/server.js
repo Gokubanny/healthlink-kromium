@@ -1,5 +1,5 @@
 // ============================================
-// FILE: backend/server.js (UPDATED WITH MONGODB & DOCTORS ROUTES)
+// FILE: backend/server.js (UPDATED WITH CHAT ENDPOINT)
 // ============================================
 const express = require('express');
 const mongoose = require('mongoose');
@@ -226,7 +226,51 @@ app.post('/api/auth/login', async (req, res) => {
 });
 
 // ============================================
-// STEP 8: ROOT ENDPOINT
+// STEP 8: CHAT ENDPOINT (NEW)
+// ============================================
+app.post('/api/chat', async (req, res) => {
+  try {
+    console.log('💬 Chat request received');
+    
+    const { message } = req.body;
+    
+    if (!message) {
+      return res.status(400).json({
+        success: false,
+        message: 'Message is required'
+      });
+    }
+    
+    console.log('📝 User message:', message);
+    
+    // Mock AI response for now
+    const responses = [
+      "I understand you're looking for medical assistance. How can I help you today?",
+      "I'm here to help with your health questions. What symptoms are you experiencing?",
+      "Thank you for reaching out. Could you tell me more about your health concern?",
+      "I can provide general health information. What would you like to know?"
+    ];
+    
+    const randomResponse = responses[Math.floor(Math.random() * responses.length)];
+    
+    res.json({
+      success: true,
+      response: randomResponse,
+      timestamp: new Date().toISOString()
+    });
+    
+  } catch (error) {
+    console.error('❌ Chat error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Chat service unavailable',
+      error: error.message
+    });
+  }
+});
+
+// ============================================
+// STEP 9: ROOT ENDPOINT
 // ============================================
 app.get('/', (req, res) => {
   res.json({
@@ -244,13 +288,14 @@ app.get('/', (req, res) => {
       register: 'POST /api/auth/register',
       login: 'POST /api/auth/login',
       doctors: 'GET /api/doctors',
-      specialties: 'GET /api/doctors/specialties/list'
+      specialties: 'GET /api/doctors/specialties/list',
+      chat: 'POST /api/chat'
     }
   });
 });
 
 // ============================================
-// STEP 9: 404 HANDLER
+// STEP 10: 404 HANDLER
 // ============================================
 app.use('*', (req, res) => {
   res.status(404).json({
@@ -263,13 +308,14 @@ app.use('*', (req, res) => {
       'POST /api/auth/register',
       'POST /api/auth/login',
       'GET /api/doctors',
-      'GET /api/doctors/specialties/list'
+      'GET /api/doctors/specialties/list',
+      'POST /api/chat'
     ]
   });
 });
 
 // ============================================
-// STEP 10: START SERVER
+// STEP 11: START SERVER
 // ============================================
 const PORT = process.env.PORT || 5000;
 
@@ -290,6 +336,7 @@ app.listen(PORT, '0.0.0.0', () => {
   console.log('   POST /api/auth/login');
   console.log('   GET  /api/doctors');
   console.log('   GET  /api/doctors/specialties/list');
+  console.log('   POST /api/chat');
   console.log('');
   console.log('✅ Server is READY for all requests!');
 });
