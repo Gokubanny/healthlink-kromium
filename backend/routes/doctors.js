@@ -1,5 +1,5 @@
 // ============================================
-// FILE: backend/routes/doctors.js
+// FILE: backend/routes/doctors.js (UPDATED WITH DEBUGGING)
 // ============================================
 const express = require('express');
 const router = express.Router();
@@ -11,6 +11,8 @@ const User = require('../models/User');
 router.get('/', async (req, res) => {
   try {
     const { specialty, search, limit = 10, page = 1 } = req.query;
+
+    console.log('🔍 [DOCTORS API] Query parameters:', { specialty, search, limit, page });
 
     // Build query
     let query = { role: 'doctor' };
@@ -27,6 +29,8 @@ router.get('/', async (req, res) => {
       ];
     }
 
+    console.log('🔍 [DOCTORS API] Final MongoDB query:', JSON.stringify(query));
+
     // Execute query with pagination
     const doctors = await User.find(query)
       .select('-password')
@@ -36,6 +40,25 @@ router.get('/', async (req, res) => {
 
     // Get total count
     const count = await User.countDocuments(query);
+
+    console.log(`✅ [DOCTORS API] Found ${doctors.length} doctors out of ${count} total`);
+    
+    // Log each doctor found
+    if (doctors.length > 0) {
+      console.log('👨‍⚕️ [DOCTORS API] Doctors found:');
+      doctors.forEach((doctor, index) => {
+        console.log(`  ${index + 1}. ${doctor.firstName} ${doctor.lastName} - ${doctor.specialty} - Role: ${doctor.role}`);
+      });
+    } else {
+      console.log('❌ [DOCTORS API] No doctors found in database');
+      
+      // Let's check what users actually exist in the database
+      const allUsers = await User.find({}).select('firstName lastName role specialty');
+      console.log('📊 [DOCTORS API] All users in database:');
+      allUsers.forEach((user, index) => {
+        console.log(`  ${index + 1}. ${user.firstName} ${user.lastName} - Role: ${user.role} - Specialty: ${user.specialty}`);
+      });
+    }
 
     res.status(200).json({
       success: true,
@@ -49,7 +72,7 @@ router.get('/', async (req, res) => {
       doctors,
     });
   } catch (error) {
-    console.error('Error fetching doctors:', error);
+    console.error('❌ [DOCTORS API] Error fetching doctors:', error);
     res.status(500).json({
       success: false,
       message: 'Server error',
@@ -88,12 +111,18 @@ router.get('/:id', async (req, res) => {
 // @access  Public
 router.get('/specialties/list', async (req, res) => {
   try {
+    console.log('🔍 [SPECIALTIES API] Fetching specialties...');
+    
     const specialties = await User.distinct('specialty', { role: 'doctor' });
+    
+    console.log(`✅ [SPECIALTIES API] Found specialties:`, specialties);
+    
     res.status(200).json({
       success: true,
       specialties,
     });
   } catch (error) {
+    console.error('❌ [SPECIALTIES API] Error fetching specialties:', error);
     res.status(500).json({
       success: false,
       message: 'Server error',

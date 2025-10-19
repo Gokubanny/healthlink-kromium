@@ -32,26 +32,34 @@ const DoctorList = () => {
     return () => clearTimeout(delayDebounceFn);
   }, [specialty, searchTerm]);
 
-  const fetchDoctors = async () => {
-    try {
-      setLoading(true);
-      const response = await doctorService.getAllDoctors({
-        specialty: specialty !== "all" ? specialty : undefined,
-        search: searchTerm || undefined,
-        limit: 20,
-        page: 1,
-      });
-      
-      console.log("Doctors response:", response);
-      setDoctors(response.doctors || []);
-    } catch (error: any) {
-      console.error("Error fetching doctors:", error);
-      toast.error(error.response?.data?.message || "Failed to load doctors");
+const fetchDoctors = async () => {
+  try {
+    setLoading(true);
+    const response = await doctorService.getAllDoctors({
+      specialty: specialty !== "all" ? specialty : undefined,
+      search: searchTerm || undefined,
+      limit: 20,
+      page: 1,
+    });
+    
+    console.log("Doctors response:", response);
+    
+    // Handle different response structures
+    if (response.doctors) {
+      setDoctors(response.doctors);
+    } else if (response.data && response.data.doctors) {
+      setDoctors(response.data.doctors);
+    } else {
       setDoctors([]);
-    } finally {
-      setLoading(false);
     }
-  };
+  } catch (error: any) {
+    console.error("Error fetching doctors:", error);
+    toast.error(error.response?.data?.message || "Failed to load doctors");
+    setDoctors([]);
+  } finally {
+    setLoading(false);
+  }
+};
 
   const fetchSpecialties = async () => {
     try {
