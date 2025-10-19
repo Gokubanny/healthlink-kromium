@@ -18,6 +18,7 @@ interface User {
   yearsOfExperience?: string;
   medicalSchool?: string;
   profilePicture?: string;
+  isVerified?: boolean;
 }
 
 interface AuthContextType {

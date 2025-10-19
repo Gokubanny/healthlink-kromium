@@ -1,12 +1,12 @@
 // ============================================
-// FILE: src/lib/api.ts (ENHANCED WITH BETTER ERROR HANDLING)
+// FILE: src/lib/api.ts (ENHANCED WITH RETRY LOGIC)
 // ============================================
 import axios from 'axios';
 
 // Get API URL from environment variable
 const API_URL = import.meta.env.VITE_API_URL || 'https://healthlink-kromium-backend.onrender.com/api';
 
-console.log('API Base URL:', API_URL);
+console.log('🌐 API Base URL:', API_URL);
 
 // Create axios instance with base configuration
 const api = axios.create({
@@ -14,11 +14,11 @@ const api = axios.create({
   headers: {
     'Content-Type': 'application/json',
   },
-  timeout: 30000, // Increased timeout to 30 seconds
-  withCredentials: false, // Set to false if not using cookies
+  timeout: 30000,
+  withCredentials: false,
 });
 
-// Request interceptor to add token to requests
+// Request interceptor
 api.interceptors.request.use(
   (config) => {
     const token = localStorage.getItem('token');
@@ -26,13 +26,12 @@ api.interceptors.request.use(
       config.headers.Authorization = `Bearer ${token}`;
     }
     
-    // Add unique identifier for CORS
     config.headers['X-Requested-With'] = 'XMLHttpRequest';
     
     console.log('🚀 API Request:', {
       method: config.method?.toUpperCase(),
       url: config.url,
-      headers: config.headers
+      baseURL: config.baseURL
     });
     
     return config;
@@ -43,7 +42,7 @@ api.interceptors.request.use(
   }
 );
 
-// Response interceptor to handle errors
+// Response interceptor with retry logic
 api.interceptors.response.use(
   (response) => {
     console.log('✅ API Response Success:', {
@@ -52,21 +51,32 @@ api.interceptors.response.use(
     });
     return response;
   },
-  (error) => {
-    const errorDetails = {
+  async (error) => {
+    const originalRequest = error.config;
+    
+    console.error('❌ API Error:', {
       url: error.config?.url,
       status: error.response?.status,
       message: error.response?.data?.message || error.message,
-      code: error.code
-    };
-    
-    console.error('❌ API Error:', errorDetails);
-    
-    // Handle CORS-specific errors
-    if (error.code === 'NETWORK_ERROR' || !error.response) {
-      console.error('🌐 CORS/Network Error - Check backend CORS configuration');
+      code: error.code,
+      responseHeaders: error.response?.headers
+    });
+
+    // Handle CORS/Network errors
+    if (error.code === 'ERR_NETWORK' || !error.response) {
+      console.error('🌐 NETWORK ERROR - Possible CORS issue or server down');
+      
+      // Test if backend is reachable
+      try {
+        const healthCheck = await axios.get('https://healthlink-kromium-backend.onrender.com/api/health', {
+          timeout: 10000
+        });
+        console.log('✅ Backend is reachable via direct call:', healthCheck.status);
+      } catch (healthError) {
+        console.error('❌ Backend is NOT reachable:', healthError.message);
+      }
     }
-    
+
     if (error.response?.status === 401) {
       localStorage.removeItem('token');
       localStorage.removeItem('user');
@@ -78,5 +88,18 @@ api.interceptors.response.use(
     return Promise.reject(error);
   }
 );
+
+// Test function to check CORS
+export const testCorsConnection = async () => {
+  try {
+    console.log('🧪 Testing CORS connection...');
+    const response = await api.get('/cors-test');
+    console.log('✅ CORS Test Successful:', response.data);
+    return response.data;
+  } catch (error) {
+    console.error('❌ CORS Test Failed:', error);
+    throw error;
+  }
+};
 
 export default api;

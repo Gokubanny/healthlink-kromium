@@ -1,11 +1,12 @@
 // ============================================
-// FILE: backend/server.js (ENHANCED CORS SOLUTION)
+// FILE: backend/server.js (ULTIMATE CORS SOLUTION)
 // ============================================
 const express = require('express');
 const mongoose = require('mongoose');
 const dotenv = require('dotenv');
 const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
+const cors = require('cors');
 
 // Load environment variables FIRST
 dotenv.config();
@@ -13,37 +14,63 @@ dotenv.config();
 const app = express();
 
 // ============================================
-// STEP 1: ENHANCED CORS MIDDLEWARE
+// STEP 1: ULTIMATE CORS CONFIGURATION
 // ============================================
 
-// More comprehensive CORS handling
+// CORS configuration
+const corsOptions = {
+  origin: function (origin, callback) {
+    // Allow requests with no origin (like mobile apps, curl, postman)
+    if (!origin) return callback(null, true);
+    
+    const allowedOrigins = [
+      'https://healthlink-kromium.onrender.com',
+      'http://localhost:3000',
+      'http://localhost:5173',
+      'https://healthlink-kromium-frontend.onrender.com'
+    ];
+    
+    if (allowedOrigins.indexOf(origin) !== -1) {
+      callback(null, true);
+    } else {
+      console.log('🔒 CORS Blocked Origin:', origin);
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH', 'HEAD'],
+  allowedHeaders: [
+    'Origin',
+    'X-Requested-With',
+    'Content-Type',
+    'Accept',
+    'Authorization',
+    'X-Access-Token',
+    'X-Key',
+    'Content-Range',
+    'Content-Disposition',
+    'Content-Description'
+  ],
+  exposedHeaders: [
+    'Content-Range',
+    'X-Content-Range',
+    'Content-Disposition',
+    'Content-Description'
+  ],
+  preflightContinue: false,
+  optionsSuccessStatus: 204,
+  maxAge: 86400
+};
+
+// Apply CORS middleware
+app.use(cors(corsOptions));
+
+// Handle preflight for all routes
+app.options('*', cors(corsOptions));
+
+// Log all requests for debugging
 app.use((req, res, next) => {
-  // Allow specific origins in production, all in development
-  const allowedOrigins = [
-    'https://healthlink-kromium.onrender.com',
-    'http://localhost:3000',
-    'http://localhost:5173'
-  ];
-  
-  const origin = req.headers.origin;
-  const requestOrigin = allowedOrigins.includes(origin) ? origin : '*';
-  
-  // Set CORS headers
-  res.setHeader('Access-Control-Allow-Origin', requestOrigin);
-  res.setHeader('Access-Control-Allow-Credentials', 'true');
-  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS, PATCH, HEAD');
-  res.setHeader('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization, X-Requested-With, Content-Range, Content-Disposition, Content-Description');
-  res.setHeader('Access-Control-Max-Age', '86400'); // 24 hours
-  
-  // Enhanced logging
-  console.log(`${new Date().toISOString()} - ${req.method} ${req.path} - Origin: ${origin || 'none'}`);
-  
-  // Handle preflight requests
-  if (req.method === 'OPTIONS') {
-    console.log('✅ Preflight request handled successfully');
-    return res.status(200).end();
-  }
-  
+  console.log(`${new Date().toISOString()} - ${req.method} ${req.path} - Origin: ${req.headers.origin || 'none'}`);
   next();
 });
 
@@ -53,7 +80,7 @@ app.use((req, res, next) => {
 
 // Configure helmet to not interfere with CORS
 app.use(helmet({
-  crossOriginResourcePolicy: false,
+  crossOriginResourcePolicy: { policy: "cross-origin" },
   crossOriginOpenerPolicy: false,
   crossOriginEmbedderPolicy: false
 }));
@@ -118,7 +145,8 @@ app.get('/api/health', (req, res) => {
     message: 'API is running',
     timestamp: new Date().toISOString(),
     database: mongoose.connection.readyState === 1 ? 'connected' : 'disconnected',
-    cors: 'enabled'
+    cors: 'enabled',
+    origin: req.headers.origin
   });
 });
 
@@ -129,20 +157,21 @@ app.get('/api/cors-test', (req, res) => {
     message: 'CORS test successful',
     timestamp: new Date().toISOString(),
     origin: req.headers.origin,
-    corsHeaders: {
-      'Access-Control-Allow-Origin': req.headers.origin || '*',
-      'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
-      'Access-Control-Allow-Headers': 'Content-Type, Authorization'
-    }
+    corsEnabled: true,
+    headers: req.headers
   });
 });
+
+// Test preflight specifically
+app.options('/api/cors-test', cors(corsOptions));
 
 // Root endpoint
 app.get('/', (req, res) => {
   res.json({
     message: 'Kromium Health API',
     version: '1.0.0',
-    status: 'operational'
+    status: 'operational',
+    cors: 'enabled'
   });
 });
 
@@ -151,6 +180,22 @@ app.get('/', (req, res) => {
 // ============================================
 
 app.use(errorHandler);
+
+// CORS error handler
+app.use((err, req, res, next) => {
+  if (err.message === 'Not allowed by CORS') {
+    return res.status(403).json({
+      success: false,
+      message: 'CORS policy: Origin not allowed',
+      allowedOrigins: [
+        'https://healthlink-kromium.onrender.com',
+        'http://localhost:3000',
+        'http://localhost:5173'
+      ]
+    });
+  }
+  next(err);
+});
 
 app.use((req, res) => {
   res.status(404).json({
@@ -169,7 +214,11 @@ const server = app.listen(PORT, '0.0.0.0', () => {
   console.log('\n🚀 =================================');
   console.log(`✅ Server running on port ${PORT}`);
   console.log(`🌍 Environment: ${process.env.NODE_ENV || 'development'}`);
-  console.log(`🔓 CORS: ENHANCED CONFIGURATION`);
+  console.log(`🔓 CORS: ULTIMATE CONFIGURATION`);
+  console.log(`📡 Allowed Origins:`);
+  console.log(`   - https://healthlink-kromium.onrender.com`);
+  console.log(`   - http://localhost:3000`);
+  console.log(`   - http://localhost:5173`);
   console.log(`📡 Listening on: 0.0.0.0:${PORT}`);
   console.log('🚀 =================================\n');
 });

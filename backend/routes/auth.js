@@ -82,11 +82,10 @@ router.post(
         userData.yearsOfExperience = yearsOfExperience;
         userData.medicalSchool = medicalSchool;
         
-        // ✅ CHANGED: Auto-verify doctors on signup (set to true)
-        // For production, you can change this back to false and add manual verification
-        userData.isVerified = true; // Auto-verify doctors immediately
+        // Auto-verify doctors on signup
+        userData.isVerified = true;
         
-        // Optional: Set default rating for new doctors
+        // Set default rating for new doctors
         userData.rating = 5.0;
         userData.reviewCount = 0;
       }

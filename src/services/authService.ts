@@ -1,7 +1,7 @@
 // ============================================
 // FILE: src/services/authService.ts
 // ============================================
-import api from '@/lib/api';
+import api, { testCorsConnection } from '@/lib/api';
 
 export interface RegisterData {
   firstName: string;
@@ -41,6 +41,10 @@ class AuthService {
   async register(data: RegisterData): Promise<AuthResponse> {
     try {
       console.log('🔐 Registering user:', { ...data, password: '***' });
+      
+      // Test CORS first
+      await testCorsConnection();
+      
       const response = await api.post('/auth/register', data);
       
       if (response.data.success && response.data.token) {
@@ -59,6 +63,10 @@ class AuthService {
   async login(data: LoginData): Promise<AuthResponse> {
     try {
       console.log('🔐 Logging in user:', { ...data, password: '***' });
+      
+      // Test CORS first
+      await testCorsConnection();
+      
       const response = await api.post('/auth/login', data);
       
       if (response.data.success && response.data.token) {
@@ -80,16 +88,6 @@ class AuthService {
       return response.data;
     } catch (error) {
       console.error('❌ Get current user failed:', error);
-      throw error;
-    }
-  }
-
-  async testCors() {
-    try {
-      const response = await api.get('/cors-test');
-      return response.data;
-    } catch (error) {
-      console.error('❌ CORS test failed:', error);
       throw error;
     }
   }
