@@ -1,10 +1,10 @@
 // ============================================
-// FILE: backend/routes/chat.js (UPDATED WITH BETTER RATE LIMITS)
+// FILE: backend/routes/chat.js (UPDATED WITH GROQ AI)
 // ============================================
 const express = require('express');
 const router = express.Router();
 const rateLimit = require('express-rate-limit');
-const OpenAI = require('openai');
+const Groq = require('groq-sdk');
 
 // VERY GENEROUS Rate limiting for development/testing
 const chatLimiter = rateLimit({
@@ -17,9 +17,8 @@ const chatLimiter = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
   skipSuccessfulRequests: false,
-  skipFailedRequests: true, // Don't count failed requests
+  skipFailedRequests: true,
   
-  // Add a custom handler for better error messages
   handler: (req, res) => {
     res.status(429).json({
       success: false,
@@ -28,9 +27,9 @@ const chatLimiter = rateLimit({
   },
 });
 
-// Initialize OpenAI with v4+ syntax
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY || 'sk-placeholder',
+// Initialize Groq
+const groq = new Groq({
+  apiKey: process.env.GROQ_API_KEY || 'gsk_placeholder',
 });
 
 // System prompt for healthcare-focused AI
@@ -75,18 +74,18 @@ router.post('/', chatLimiter, async (req, res) => {
       });
     }
 
-    // Check if OpenAI API key is configured
-    if (!process.env.OPENAI_API_KEY || process.env.OPENAI_API_KEY === 'sk-placeholder') {
-      console.error('OpenAI API key not configured');
+    // Check if Groq API key is configured
+    if (!process.env.GROQ_API_KEY || process.env.GROQ_API_KEY === 'gsk_placeholder') {
+      console.error('Groq API key not configured');
       return res.status(500).json({
         success: false,
         reply: "I'm currently unavailable. Please try again later.",
       });
     }
 
-    // Call OpenAI API with v4+ syntax
-    const completion = await openai.chat.completions.create({
-      model: 'gpt-4o-mini',
+    // Call Groq API
+    const completion = await groq.chat.completions.create({
+      model: 'llama-3.3-70b-versatile', // Fast and accurate model
       messages: [
         { role: 'system', content: SYSTEM_PROMPT },
         { role: 'user', content: message.trim() },
@@ -94,8 +93,6 @@ router.post('/', chatLimiter, async (req, res) => {
       max_tokens: 300,
       temperature: 0.7,
       top_p: 1,
-      frequency_penalty: 0.5,
-      presence_penalty: 0.5,
     });
 
     const reply = completion.choices[0]?.message?.content?.trim();
@@ -112,7 +109,7 @@ router.post('/', chatLimiter, async (req, res) => {
   } catch (error) {
     console.error('Chat API Error:', error.message);
 
-    // Handle specific OpenAI errors
+    // Handle specific Groq errors
     if (error.status === 429) {
       return res.status(429).json({
         success: false,
@@ -121,7 +118,7 @@ router.post('/', chatLimiter, async (req, res) => {
     }
 
     if (error.status === 401 || error.status === 403) {
-      console.error('OpenAI API authentication failed');
+      console.error('Groq API authentication failed');
       return res.status(500).json({
         success: false,
         reply: "I'm currently unavailable. Please try again later.",
@@ -140,11 +137,11 @@ router.post('/', chatLimiter, async (req, res) => {
 // @desc    Check chatbot service health
 // @access  Public
 router.get('/health', (req, res) => {
-  const hasApiKey = process.env.OPENAI_API_KEY && process.env.OPENAI_API_KEY !== 'sk-placeholder';
+  const hasApiKey = process.env.GROQ_API_KEY && process.env.GROQ_API_KEY !== 'gsk_placeholder';
   res.json({
     success: true,
     status: hasApiKey ? 'operational' : 'degraded',
-    service: 'Kromium Assistant',
+    service: 'Kromium Assistant (Groq AI)',
     apiKeyConfigured: hasApiKey,
   });
 });
