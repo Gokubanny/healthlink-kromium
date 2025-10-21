@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -11,41 +11,86 @@ import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { useAuth } from "@/context/AuthContext";
 import { Camera, Mail, Phone, User } from "lucide-react";
 import { toast } from "sonner";
-import userService from "@/services/userService";
-
+import api from "@/lib/api";
 
 const PatientProfile = () => {
   const { user, updateProfile } = useAuth();
   const [isEditing, setIsEditing] = useState(false);
+  const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState({
-    firstName: user?.firstName || "",
-    lastName: user?.lastName || "",
-    email: user?.email || "",
-    phone: user?.phone || "",
+    firstName: "",
+    lastName: "",
+    email: "",
+    phone: "",
   });
+
+  // Initialize form data when user data is available
+  useEffect(() => {
+    if (user) {
+      setFormData({
+        firstName: user?.firstName || "",
+        lastName: user?.lastName || "",
+        email: user?.email || "",
+        phone: user?.phone || "",
+      });
+    }
+  }, [user]);
 
   const handleSave = async () => {
     try {
-      const response = await userService.updateProfile(formData);
-      updateProfile(response.user);
-      setIsEditing(false);
-      toast.success("Profile updated successfully!");
-    } catch (error) {
+      setLoading(true);
+      const response = await api.put('/users/profile', formData);
+      
+      if (response.data.success) {
+        updateProfile(response.data.user);
+        setIsEditing(false);
+        toast.success("Profile updated successfully!");
+      } else {
+        throw new Error(response.data.message || 'Failed to update profile');
+      }
+    } catch (error: any) {
       console.error("Error updating profile:", error);
-      toast.error("Failed to update profile");
+      toast.error(error.response?.data?.message || "Failed to update profile");
+    } finally {
+      setLoading(false);
     }
   };
 
-  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        updateProfile({ profilePicture: reader.result as string });
-        toast.success("Profile picture updated!");
-      };
-      reader.readAsDataURL(file);
+      try {
+        setLoading(true);
+        const formData = new FormData();
+        formData.append('profilePicture', file);
+
+        const response = await api.put('/users/profile', formData, {
+          headers: {
+            'Content-Type': 'multipart/form-data',
+          },
+        });
+
+        if (response.data.success) {
+          updateProfile(response.data.user);
+          toast.success("Profile picture updated!");
+        }
+      } catch (error: any) {
+        console.error("Error uploading profile picture:", error);
+        toast.error(error.response?.data?.message || "Failed to update profile picture");
+      } finally {
+        setLoading(false);
+      }
     }
+  };
+
+  const handleCancel = () => {
+    setFormData({
+      firstName: user?.firstName || "",
+      lastName: user?.lastName || "",
+      email: user?.email || "",
+      phone: user?.phone || "",
+    });
+    setIsEditing(false);
   };
 
   return (
@@ -88,6 +133,7 @@ const PatientProfile = () => {
                       accept="image/*"
                       className="hidden"
                       onChange={handleImageUpload}
+                      disabled={loading}
                     />
                   </div>
                   <h2 className="text-2xl font-bold mt-4">
@@ -104,7 +150,7 @@ const PatientProfile = () => {
                         id="firstName"
                         value={formData.firstName}
                         onChange={(e) => setFormData({ ...formData, firstName: e.target.value })}
-                        disabled={!isEditing}
+                        disabled={!isEditing || loading}
                       />
                     </div>
                     <div>
@@ -113,7 +159,7 @@ const PatientProfile = () => {
                         id="lastName"
                         value={formData.lastName}
                         onChange={(e) => setFormData({ ...formData, lastName: e.target.value })}
-                        disabled={!isEditing}
+                        disabled={!isEditing || loading}
                       />
                     </div>
                   </div>
@@ -127,7 +173,7 @@ const PatientProfile = () => {
                         type="email"
                         value={formData.email}
                         onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                        disabled={!isEditing}
+                        disabled={!isEditing || loading}
                         className="pl-10"
                       />
                     </div>
@@ -142,7 +188,7 @@ const PatientProfile = () => {
                         type="tel"
                         value={formData.phone}
                         onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                        disabled={!isEditing}
+                        disabled={!isEditing || loading}
                         className="pl-10"
                       />
                     </div>
@@ -151,15 +197,28 @@ const PatientProfile = () => {
                   <div className="flex gap-2 pt-4">
                     {isEditing ? (
                       <>
-                        <Button onClick={handleSave} className="flex-1">
-                          Save Changes
+                        <Button 
+                          onClick={handleSave} 
+                          className="flex-1"
+                          disabled={loading}
+                        >
+                          {loading ? "Saving..." : "Save Changes"}
                         </Button>
-                        <Button onClick={() => setIsEditing(false)} variant="outline" className="flex-1">
+                        <Button 
+                          onClick={handleCancel} 
+                          variant="outline" 
+                          className="flex-1"
+                          disabled={loading}
+                        >
                           Cancel
                         </Button>
                       </>
                     ) : (
-                      <Button onClick={() => setIsEditing(true)} className="w-full">
+                      <Button 
+                        onClick={() => setIsEditing(true)} 
+                        className="w-full"
+                        disabled={loading}
+                      >
                         Edit Profile
                       </Button>
                     )}

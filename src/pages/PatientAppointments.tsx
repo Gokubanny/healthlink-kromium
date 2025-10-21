@@ -1,6 +1,3 @@
-// ============================================
-// FILE: src/pages/PatientAppointments.tsx (FIXED)
-// ============================================
 import { useState, useEffect } from "react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -9,12 +6,31 @@ import Footer from "@/components/Footer";
 import { PatientSidebar } from "@/components/PatientSidebar";
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { Calendar, Clock, MapPin, User, Video } from "lucide-react";
-import appointmentService from "@/services/appointmentService";
+import api from "@/lib/api";
 import { toast } from "sonner";
 import { Link } from "react-router-dom";
 
+interface Doctor {
+  _id: string;
+  firstName: string;
+  lastName: string;
+  specialty: string;
+}
+
+interface Appointment {
+  _id: string;
+  doctor: Doctor;
+  appointmentDate: string;
+  appointmentTime: string;
+  status: string;
+  type: string;
+  mode: string;
+  location?: string;
+  reason?: string;
+}
+
 const PatientAppointments = () => {
-  const [appointments, setAppointments] = useState<any[]>([]);
+  const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -24,9 +40,9 @@ const PatientAppointments = () => {
   const fetchAppointments = async () => {
     try {
       setLoading(true);
-      const response = await appointmentService.getAllAppointments();
+      const response = await api.get('/appointments/my-appointments');
       console.log("Appointments response:", response);
-      setAppointments(response.appointments || []);
+      setAppointments(response.data.appointments || []);
     } catch (error: any) {
       console.error("Error fetching appointments:", error);
       if (error.response?.status !== 404) {
@@ -44,13 +60,18 @@ const PatientAppointments = () => {
     }
 
     try {
-      await appointmentService.cancelAppointment(id);
+      await api.put(`/appointments/${id}/cancel`);
       toast.success("Appointment cancelled successfully");
       fetchAppointments();
     } catch (error: any) {
       console.error("Error cancelling appointment:", error);
       toast.error(error.response?.data?.message || "Failed to cancel appointment");
     }
+  };
+
+  const handleRescheduleAppointment = async (id: string) => {
+    toast.info("Reschedule functionality coming soon!");
+    // TODO: Implement reschedule functionality
   };
 
   const formatDate = (dateString: string) => {
@@ -127,7 +148,7 @@ const PatientAppointments = () => {
               </Card>
             ) : (
               <div className="space-y-4">
-                {appointments.map((appointment: any) => (
+                {appointments.map((appointment: Appointment) => (
                   <Card
                     key={appointment._id}
                     className="p-6 animate-fade-in hover:shadow-medium transition-smooth"
@@ -182,7 +203,11 @@ const PatientAppointments = () => {
                         </span>
                         {(appointment.status === "Scheduled" || appointment.status === "Confirmed") && (
                           <div className="flex gap-2">
-                            <Button size="sm" variant="outline">
+                            <Button 
+                              size="sm" 
+                              variant="outline"
+                              onClick={() => handleRescheduleAppointment(appointment._id)}
+                            >
                               Reschedule
                             </Button>
                             <Button

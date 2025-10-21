@@ -9,6 +9,7 @@ import { useAuth } from "@/context/AuthContext";
 import { Calendar, FileText, Heart, Stethoscope, User, Clock, Star } from "lucide-react";
 import { useState, useEffect } from "react";
 import api from "@/lib/api";
+import { toast } from "sonner";
 
 interface Doctor {
   _id: string;
@@ -22,23 +23,25 @@ interface Doctor {
   isVerified: boolean;
 }
 
+interface Appointment {
+  _id: string;
+  doctor: Doctor;
+  appointmentDate: string;
+  appointmentTime: string;
+  status: string;
+  type: string;
+  mode: string;
+}
+
 const PatientDashboard = () => {
   const { user } = useAuth();
   const [doctors, setDoctors] = useState<Doctor[]>([]);
+  const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [loading, setLoading] = useState(true);
+  const [appointmentsLoading, setAppointmentsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   const patientName = user?.firstName || "Patient";
-  const upcomingAppointments = [
-    {
-      id: 1,
-      doctor: "Dr. Sarah Johnson",
-      specialty: "Cardiologist",
-      date: "2025-10-20",
-      time: "10:00 AM",
-      status: "Scheduled",
-    },
-  ];
 
   // Fetch doctors from backend
   useEffect(() => {
@@ -63,11 +66,42 @@ const PatientDashboard = () => {
       }
     };
 
+    // Fetch appointments from backend
+    const fetchAppointments = async () => {
+      try {
+        setAppointmentsLoading(true);
+        console.log('🔄 Fetching appointments from backend...');
+        
+        const response = await api.get('/appointments/my-appointments');
+        
+        if (response.data.success) {
+          console.log('✅ Appointments fetched successfully:', response.data.appointments.length);
+          setAppointments(response.data.appointments);
+        } else {
+          throw new Error(response.data.message || 'Failed to fetch appointments');
+        }
+      } catch (err: any) {
+        console.error('❌ Error fetching appointments:', err);
+        // Don't show error for appointments if it's 404 (no appointments)
+        if (err.response?.status !== 404) {
+          toast.error('Failed to load appointments');
+        }
+      } finally {
+        setAppointmentsLoading(false);
+      }
+    };
+
     fetchDoctors();
+    fetchAppointments();
   }, []);
 
   // Get recommended doctors (first 3 doctors)
   const recommendedDoctors = doctors.slice(0, 3);
+  
+  // Get upcoming appointments (scheduled or confirmed)
+  const upcomingAppointments = appointments.filter(apt => 
+    ['Scheduled', 'Confirmed'].includes(apt.status)
+  ).slice(0, 3);
 
   // Function to get doctor's full name
   const getDoctorFullName = (doctor: Doctor) => {
@@ -90,6 +124,14 @@ const PatientDashboard = () => {
     };
     
     return emojiMap[specialty.toLowerCase()] || '👨‍⚕️';
+  };
+
+  const formatDate = (dateString: string) => {
+    return new Date(dateString).toLocaleDateString("en-US", {
+      year: "numeric",
+      month: "long",
+      day: "numeric",
+    });
   };
 
   return (
@@ -121,7 +163,7 @@ const PatientDashboard = () => {
                     <Calendar className="h-6 w-6 text-primary" />
                   </div>
                   <div>
-                    <p className="text-2xl font-bold">1</p>
+                    <p className="text-2xl font-bold">{upcomingAppointments.length}</p>
                     <p className="text-sm text-muted-foreground">Upcoming</p>
                   </div>
                 </div>
@@ -133,8 +175,8 @@ const PatientDashboard = () => {
                     <FileText className="h-6 w-6 text-primary" />
                   </div>
                   <div>
-                    <p className="text-2xl font-bold">5</p>
-                    <p className="text-sm text-muted-foreground">Records</p>
+                    <p className="text-2xl font-bold">{appointments.length}</p>
+                    <p className="text-sm text-muted-foreground">Total Appointments</p>
                   </div>
                 </div>
               </Card>
@@ -178,11 +220,16 @@ const PatientDashboard = () => {
                     </Link>
                   </div>
 
-                  {upcomingAppointments.length > 0 ? (
+                  {appointmentsLoading ? (
+                    <div className="text-center py-8">
+                      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto"></div>
+                      <p className="text-muted-foreground mt-2">Loading appointments...</p>
+                    </div>
+                  ) : upcomingAppointments.length > 0 ? (
                     <div className="space-y-4">
                       {upcomingAppointments.map((appointment) => (
                         <div
-                          key={appointment.id}
+                          key={appointment._id}
                           className="flex items-center justify-between p-4 bg-secondary rounded-lg hover:shadow-soft transition-smooth"
                         >
                           <div className="flex items-center gap-4">
@@ -190,12 +237,14 @@ const PatientDashboard = () => {
                               <Stethoscope className="h-5 w-5 text-primary" />
                             </div>
                             <div>
-                              <p className="font-semibold">{appointment.doctor}</p>
-                              <p className="text-sm text-muted-foreground">{appointment.specialty}</p>
+                              <p className="font-semibold">
+                                {getDoctorFullName(appointment.doctor)}
+                              </p>
+                              <p className="text-sm text-muted-foreground">{appointment.doctor.specialty}</p>
                               <div className="flex items-center gap-2 mt-1 text-sm text-muted-foreground">
                                 <Clock className="h-4 w-4" />
                                 <span>
-                                  {appointment.date} at {appointment.time}
+                                  {formatDate(appointment.appointmentDate)} at {appointment.appointmentTime}
                                 </span>
                               </div>
                             </div>
@@ -333,14 +382,18 @@ const PatientDashboard = () => {
                 <Card className="p-6 animate-fade-in" style={{ animationDelay: "0.2s" }}>
                   <h3 className="font-heading font-semibold mb-4">Quick Actions</h3>
                   <div className="space-y-3">
-                    <Button variant="outline" className="w-full justify-start">
-                      <User className="mr-2 h-4 w-4" />
-                      Edit Profile
-                    </Button>
-                    <Button variant="outline" className="w-full justify-start">
-                      <FileText className="mr-2 h-4 w-4" />
-                      Medical Records
-                    </Button>
+                    <Link to="/dashboard/patient/profile" className="block">
+                      <Button variant="outline" className="w-full justify-start">
+                        <User className="mr-2 h-4 w-4" />
+                        Edit Profile
+                      </Button>
+                    </Link>
+                    <Link to="/dashboard/patient/records" className="block">
+                      <Button variant="outline" className="w-full justify-start">
+                        <FileText className="mr-2 h-4 w-4" />
+                        Medical Records
+                      </Button>
+                    </Link>
                     <Link to="/doctors" className="block">
                       <Button className="w-full justify-start bg-primary hover:bg-primary-hover">
                         <Stethoscope className="mr-2 h-4 w-4" />
