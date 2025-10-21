@@ -1,12 +1,12 @@
 import { Link } from "react-router-dom";
-import { Button } from "@/components/ui/button";
+import { Button } from "@/components/ui/card";
 import { Card } from "@/components/ui/card";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import { PatientSidebar } from "@/components/PatientSidebar";
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { useAuth } from "@/context/AuthContext";
-import { Calendar, FileText, Heart, Stethoscope, User, Clock, Star } from "lucide-react";
+import { Calendar, FileText, Heart, Stethoscope, User, Clock, Star, TrendingUp, TrendingDown } from "lucide-react";
 import { useState, useEffect } from "react";
 import api from "@/lib/api";
 import { toast } from "sonner";
@@ -33,56 +33,83 @@ interface Appointment {
   mode: string;
 }
 
+interface HealthMetric {
+  bloodPressure: string;
+  heartRate: number;
+  weight: number;
+  height: number;
+  bmi: number;
+  lastUpdated: string;
+}
+
 const PatientDashboard = () => {
   const { user } = useAuth();
   const [doctors, setDoctors] = useState<Doctor[]>([]);
   const [appointments, setAppointments] = useState<Appointment[]>([]);
+  const [healthMetrics, setHealthMetrics] = useState<HealthMetric | null>(null);
+  const [healthScore, setHealthScore] = useState<number>(0);
   const [loading, setLoading] = useState(true);
   const [appointmentsLoading, setAppointmentsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   const patientName = user?.firstName || "Patient";
 
-  // Fetch doctors from backend
+  // Calculate health score based on various factors
+  const calculateHealthScore = (metrics: HealthMetric | null, appointments: Appointment[]) => {
+    let score = 75; // Base score
+
+    if (metrics) {
+      // Blood pressure scoring (120/80 is ideal)
+      const bp = metrics.bloodPressure.split('/').map(Number);
+      if (bp.length === 2) {
+        const [systolic, diastolic] = bp;
+        if (systolic >= 120 && systolic <= 129 && diastolic >= 80 && diastolic <= 84) score += 5;
+        else if (systolic >= 130 || diastolic >= 85) score -= 10;
+        else if (systolic < 120 && diastolic < 80) score += 2;
+      }
+
+      // Heart rate scoring (60-100 bpm is normal)
+      if (metrics.heartRate >= 60 && metrics.heartRate <= 100) score += 5;
+      else if (metrics.heartRate < 60 || metrics.heartRate > 100) score -= 5;
+
+      // BMI scoring (18.5-24.9 is healthy)
+      if (metrics.bmi >= 18.5 && metrics.bmi <= 24.9) score += 10;
+      else if (metrics.bmi >= 25 && metrics.bmi <= 29.9) score -= 5;
+      else if (metrics.bmi >= 30) score -= 10;
+    }
+
+    // Regular checkups boost score
+    const recentAppointments = appointments.filter(apt => 
+      new Date(apt.appointmentDate) > new Date(Date.now() - 6 * 30 * 24 * 60 * 60 * 1000) // Last 6 months
+    );
+    if (recentAppointments.length > 0) score += 5;
+
+    // Ensure score is between 0-100
+    return Math.max(0, Math.min(100, score));
+  };
+
+  // Fetch all data
   useEffect(() => {
     const fetchDoctors = async () => {
       try {
         setLoading(true);
-        console.log('🔄 Fetching doctors from backend...');
-        
         const response = await api.get('/doctors');
-        
         if (response.data.success) {
-          console.log('✅ Doctors fetched successfully:', response.data.doctors.length);
           setDoctors(response.data.doctors);
-        } else {
-          throw new Error(response.data.message || 'Failed to fetch doctors');
         }
       } catch (err: any) {
-        console.error('❌ Error fetching doctors:', err);
         setError(err.response?.data?.message || 'Failed to load doctors');
-      } finally {
-        setLoading(false);
       }
     };
 
-    // Fetch appointments from backend
     const fetchAppointments = async () => {
       try {
         setAppointmentsLoading(true);
-        console.log('🔄 Fetching appointments from backend...');
-        
         const response = await api.get('/appointments/my-appointments');
-        
         if (response.data.success) {
-          console.log('✅ Appointments fetched successfully:', response.data.appointments.length);
-          setAppointments(response.data.appointments);
-        } else {
-          throw new Error(response.data.message || 'Failed to fetch appointments');
+          setAppointments(response.data.appointments || []);
         }
       } catch (err: any) {
-        console.error('❌ Error fetching appointments:', err);
-        // Don't show error for appointments if it's 404 (no appointments)
         if (err.response?.status !== 404) {
           toast.error('Failed to load appointments');
         }
@@ -91,24 +118,55 @@ const PatientDashboard = () => {
       }
     };
 
-    fetchDoctors();
-    fetchAppointments();
+    const fetchHealthMetrics = async () => {
+      try {
+        const response = await api.get('/health-metrics/latest');
+        if (response.data.success) {
+          setHealthMetrics(response.data.metrics);
+        }
+      } catch (err: any) {
+        // If no metrics found, use default values
+        setHealthMetrics({
+          bloodPressure: "120/80",
+          heartRate: 72,
+          weight: 70,
+          height: 170,
+          bmi: 24.2,
+          lastUpdated: new Date().toISOString()
+        });
+      }
+    };
+
+    const loadData = async () => {
+      await Promise.all([
+        fetchDoctors(),
+        fetchAppointments(),
+        fetchHealthMetrics()
+      ]);
+      setLoading(false);
+    };
+
+    loadData();
   }, []);
 
-  // Get recommended doctors (first 3 doctors)
+  // Calculate health score when data changes
+  useEffect(() => {
+    if (!loading && !appointmentsLoading) {
+      const score = calculateHealthScore(healthMetrics, appointments);
+      setHealthScore(score);
+    }
+  }, [healthMetrics, appointments, loading, appointmentsLoading]);
+
+  // Get recommended doctors and upcoming appointments
   const recommendedDoctors = doctors.slice(0, 3);
-  
-  // Get upcoming appointments (scheduled or confirmed)
   const upcomingAppointments = appointments.filter(apt => 
     ['Scheduled', 'Confirmed'].includes(apt.status)
   ).slice(0, 3);
 
-  // Function to get doctor's full name
   const getDoctorFullName = (doctor: Doctor) => {
     return `Dr. ${doctor.firstName} ${doctor.lastName}`;
   };
 
-  // Function to get doctor emoji based on specialty
   const getDoctorEmoji = (specialty: string) => {
     const emojiMap: { [key: string]: string } = {
       'cardiologist': '❤️',
@@ -122,7 +180,6 @@ const PatientDashboard = () => {
       'general': '👨‍⚕️',
       'surgeon': '🔪'
     };
-    
     return emojiMap[specialty.toLowerCase()] || '👨‍⚕️';
   };
 
@@ -133,6 +190,16 @@ const PatientDashboard = () => {
       day: "numeric",
     });
   };
+
+  const getHealthStatus = (score: number) => {
+    if (score >= 90) return { text: "Excellent", color: "text-green-600", bg: "bg-green-100" };
+    if (score >= 80) return { text: "Very Good", color: "text-green-500", bg: "bg-green-50" };
+    if (score >= 70) return { text: "Good", color: "text-blue-500", bg: "bg-blue-50" };
+    if (score >= 60) return { text: "Fair", color: "text-yellow-600", bg: "bg-yellow-50" };
+    return { text: "Needs Attention", color: "text-red-600", bg: "bg-red-50" };
+  };
+
+  const healthStatus = getHealthStatus(healthScore);
 
   return (
     <SidebarProvider>
@@ -199,8 +266,10 @@ const PatientDashboard = () => {
                     <Heart className="h-6 w-6 text-primary" fill="currentColor" />
                   </div>
                   <div>
-                    <p className="text-2xl font-bold">98%</p>
-                    <p className="text-sm text-muted-foreground">Health Score</p>
+                    <p className="text-2xl font-bold">{healthScore}%</p>
+                    <p className={`text-sm font-medium ${healthStatus.color}`}>
+                      {healthStatus.text}
+                    </p>
                   </div>
                 </div>
               </Card>
@@ -284,19 +353,6 @@ const PatientDashboard = () => {
                       <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto"></div>
                       <p className="text-muted-foreground mt-2">Loading doctors...</p>
                     </div>
-                  ) : error ? (
-                    <div className="text-center py-8 text-muted-foreground">
-                      <Stethoscope className="h-12 w-12 mx-auto mb-3 opacity-50" />
-                      <p>Unable to load doctors</p>
-                      <p className="text-sm mt-1">{error}</p>
-                      <Button 
-                        onClick={() => window.location.reload()} 
-                        variant="outline" 
-                        className="mt-4"
-                      >
-                        Try Again
-                      </Button>
-                    </div>
                   ) : recommendedDoctors.length > 0 ? (
                     <>
                       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -359,27 +415,87 @@ const PatientDashboard = () => {
               <div className="space-y-6">
                 {/* Health Overview */}
                 <Card className="p-6 animate-fade-in" style={{ animationDelay: "0.1s" }}>
-                  <h3 className="font-heading font-semibold mb-4">Health Overview</h3>
+                  <div className="flex items-center justify-between mb-4">
+                    <h3 className="font-heading font-semibold">Health Overview</h3>
+                    <Link to="/dashboard/patient/health-metrics">
+                      <Button variant="ghost" size="sm">Update</Button>
+                    </Link>
+                  </div>
                   <div className="space-y-4">
+                    {healthMetrics ? (
+                      <>
+                        <div className="flex justify-between items-center">
+                          <span className="text-sm text-muted-foreground">Blood Pressure</span>
+                          <span className="font-medium">{healthMetrics.bloodPressure}</span>
+                        </div>
+                        <div className="flex justify-between items-center">
+                          <span className="text-sm text-muted-foreground">Heart Rate</span>
+                          <div className="flex items-center gap-1">
+                            <span className="font-medium">{healthMetrics.heartRate} bpm</span>
+                            {healthMetrics.heartRate >= 60 && healthMetrics.heartRate <= 100 ? (
+                              <TrendingUp className="h-3 w-3 text-green-500" />
+                            ) : (
+                              <TrendingDown className="h-3 w-3 text-red-500" />
+                            )}
+                          </div>
+                        </div>
+                        <div className="flex justify-between items-center">
+                          <span className="text-sm text-muted-foreground">Weight</span>
+                          <span className="font-medium">{healthMetrics.weight} kg</span>
+                        </div>
+                        <div className="flex justify-between items-center">
+                          <span className="text-sm text-muted-foreground">BMI</span>
+                          <span className={`font-medium ${
+                            healthMetrics.bmi >= 18.5 && healthMetrics.bmi <= 24.9 
+                              ? 'text-green-600' 
+                              : 'text-red-600'
+                          }`}>
+                            {healthMetrics.bmi.toFixed(1)}
+                          </span>
+                        </div>
+                      </>
+                    ) : (
+                      <div className="text-center py-4 text-muted-foreground">
+                        <p>No health metrics recorded</p>
+                        <Link to="/dashboard/patient/health-metrics">
+                          <Button size="sm" variant="outline" className="mt-2">
+                            Add Health Metrics
+                          </Button>
+                        </Link>
+                      </div>
+                    )}
+                  </div>
+                </Card>
+
+                {/* Health Score Breakdown */}
+                <Card className="p-6 animate-fade-in" style={{ animationDelay: "0.2s" }}>
+                  <h3 className="font-heading font-semibold mb-4">Health Score</h3>
+                  <div className="space-y-3">
                     <div>
-                      <div className="flex justify-between text-sm mb-2">
-                        <span className="text-muted-foreground">Blood Pressure</span>
-                        <span className="font-medium">120/80</span>
+                      <div className="flex justify-between text-sm mb-1">
+                        <span className="text-muted-foreground">Overall Score</span>
+                        <span className="font-medium">{healthScore}%</span>
                       </div>
-                      <div className="flex justify-between text-sm mb-2">
-                        <span className="text-muted-foreground">Heart Rate</span>
-                        <span className="font-medium">72 bpm</span>
+                      <div className="w-full bg-gray-200 rounded-full h-2">
+                        <div 
+                          className={`h-2 rounded-full ${
+                            healthScore >= 80 ? 'bg-green-500' :
+                            healthScore >= 60 ? 'bg-yellow-500' : 'bg-red-500'
+                          }`}
+                          style={{ width: `${healthScore}%` }}
+                        ></div>
                       </div>
-                      <div className="flex justify-between text-sm mb-2">
-                        <span className="text-muted-foreground">Weight</span>
-                        <span className="font-medium">70 kg</span>
-                      </div>
+                    </div>
+                    <div className="text-xs text-muted-foreground space-y-1">
+                      <p>• Based on vital signs and health metrics</p>
+                      <p>• Regular checkups improve your score</p>
+                      <p>• Update your metrics for accurate scoring</p>
                     </div>
                   </div>
                 </Card>
 
                 {/* Quick Actions */}
-                <Card className="p-6 animate-fade-in" style={{ animationDelay: "0.2s" }}>
+                <Card className="p-6 animate-fade-in" style={{ animationDelay: "0.3s" }}>
                   <h3 className="font-heading font-semibold mb-4">Quick Actions</h3>
                   <div className="space-y-3">
                     <Link to="/dashboard/patient/profile" className="block">
@@ -402,23 +518,6 @@ const PatientDashboard = () => {
                     </Link>
                   </div>
                 </Card>
-
-                {/* Available Specialties */}
-                {doctors.length > 0 && (
-                  <Card className="p-6 animate-fade-in" style={{ animationDelay: "0.3s" }}>
-                    <h3 className="font-heading font-semibold mb-4">Available Specialties</h3>
-                    <div className="space-y-2">
-                      {Array.from(new Set(doctors.map(d => d.specialty))).slice(0, 5).map((specialty, index) => (
-                        <div key={index} className="flex justify-between text-sm">
-                          <span className="text-muted-foreground capitalize">{specialty}</span>
-                          <span className="font-medium">
-                            {doctors.filter(d => d.specialty === specialty).length}
-                          </span>
-                        </div>
-                      ))}
-                    </div>
-                  </Card>
-                )}
               </div>
             </div>
           </main>
