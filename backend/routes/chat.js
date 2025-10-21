@@ -1,15 +1,15 @@
 // ============================================
-// FILE: backend/routes/chat.js (SINGLE COPY)
+// FILE: backend/routes/chat.js (UPDATED RATE LIMITS)
 // ============================================
 const express = require('express');
 const router = express.Router();
 const rateLimit = require('express-rate-limit');
 const OpenAI = require('openai');
 
-// Rate limiting: 10 messages per 15 minutes per IP
+// Rate limiting: More generous limits for development
 const chatLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 10,
+  max: process.env.NODE_ENV === 'production' ? 20 : 100, // 20 in production, 100 in development
   message: {
     success: false,
     message: 'Too many requests. Please try again later.',
