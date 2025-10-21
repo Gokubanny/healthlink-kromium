@@ -9,7 +9,7 @@ interface Message {
 }
 
 // FIXED: Removed /api from the URL to prevent duplication
-const API_URL = 'https://healthlink-kromium-backend-k5ig.onrender.com';
+const API_URL = 'https://healthlink-kromium-backend-k5ig.onrender.com/api';
 
 const KromiumChatbot = () => {
   const [isOpen, setIsOpen] = useState(false);
@@ -80,9 +80,9 @@ const KromiumChatbot = () => {
     setIsLoading(true);
 
     try {
-      console.log('Sending to:', `${API_URL}/api/chat`);
+      console.log('Sending to:', `${API_URL}/chat`);
       
-      const response = await fetch(`${API_URL}/api/chat`, {
+      const response = await fetch(`${API_URL}/chat`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
