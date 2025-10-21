@@ -6,19 +6,26 @@ const router = express.Router();
 const rateLimit = require('express-rate-limit');
 const OpenAI = require('openai');
 
-// IMPROVED Rate limiting with more generous limits
+// VERY GENEROUS Rate limiting for development/testing
 const chatLimiter = rateLimit({
   windowMs: 1 * 60 * 1000, // 1 minute window
-  max: 20, // 20 requests per minute (much more generous)
+  max: 100, // 100 requests per minute (very generous for testing)
   message: {
     success: false,
-    message: 'Too many chat requests. Please wait a moment before trying again.',
+    reply: 'Too many chat requests. Please wait a moment before trying again.',
   },
   standardHeaders: true,
   legacyHeaders: false,
-  // Skip rate limiting for successful requests with small delays
   skipSuccessfulRequests: false,
   skipFailedRequests: true, // Don't count failed requests
+  
+  // Add a custom handler for better error messages
+  handler: (req, res) => {
+    res.status(429).json({
+      success: false,
+      reply: "I'm receiving too many requests right now. Please wait 10 seconds and try again.",
+    });
+  },
 });
 
 // Initialize OpenAI with v4+ syntax

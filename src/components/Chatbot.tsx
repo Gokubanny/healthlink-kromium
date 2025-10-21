@@ -8,7 +8,6 @@ interface Message {
   timestamp: Date;
 }
 
-// FIXED: Removed /api from the URL to prevent duplication
 const API_URL = 'https://healthlink-kromium-backend-k5ig.onrender.com/api';
 
 const KromiumChatbot = () => {
@@ -17,8 +16,10 @@ const KromiumChatbot = () => {
   const [inputValue, setInputValue] = useState('');
   const [isTyping, setIsTyping] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [rateLimitCooldown, setRateLimitCooldown] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const lastRequestTime = useRef<number>(0);
 
   useEffect(() => {
     const savedMessages = localStorage.getItem('kromium-chat-history');
@@ -65,7 +66,15 @@ const KromiumChatbot = () => {
   }, [isOpen]);
 
   const handleSendMessage = async () => {
-    if (!inputValue.trim() || isLoading) return;
+    if (!inputValue.trim() || isLoading || rateLimitCooldown) return;
+
+    // Enforce minimum 1 second delay between requests
+    const now = Date.now();
+    const timeSinceLastRequest = now - lastRequestTime.current;
+    if (timeSinceLastRequest < 1000) {
+      const waitTime = 1000 - timeSinceLastRequest;
+      await new Promise(resolve => setTimeout(resolve, waitTime));
+    }
 
     const userMessage: Message = {
       id: Date.now().toString(),
@@ -78,6 +87,7 @@ const KromiumChatbot = () => {
     setInputValue('');
     setIsTyping(true);
     setIsLoading(true);
+    lastRequestTime.current = Date.now();
 
     try {
       console.log('Sending to:', `${API_URL}/chat`);
@@ -91,6 +101,29 @@ const KromiumChatbot = () => {
       });
 
       console.log('Response status:', response.status);
+
+      if (response.status === 429) {
+        // Rate limited - show friendly message and set cooldown
+        setRateLimitCooldown(true);
+        setIsTyping(false);
+        
+        const cooldownMessage: Message = {
+          id: (Date.now() + 1).toString(),
+          text: "I'm receiving many requests right now. Please wait 10 seconds before sending another message. ⏳",
+          sender: 'bot',
+          timestamp: new Date()
+        };
+        
+        setMessages(prev => [...prev, cooldownMessage]);
+        
+        // Auto-clear cooldown after 10 seconds
+        setTimeout(() => {
+          setRateLimitCooldown(false);
+        }, 10000);
+        
+        setIsLoading(false);
+        return;
+      }
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
@@ -219,6 +252,11 @@ const KromiumChatbot = () => {
 
           {/* Input */}
           <div className="p-4 bg-white border-t rounded-b-lg">
+            {rateLimitCooldown && (
+              <div className="mb-2 text-xs text-orange-600 bg-orange-50 p-2 rounded">
+                ⏳ Please wait 10 seconds before sending another message
+              </div>
+            )}
             <div className="flex gap-2">
               <input
                 ref={inputRef}
@@ -227,13 +265,13 @@ const KromiumChatbot = () => {
                 onChange={(e) => setInputValue(e.target.value)}
                 onKeyPress={handleKeyPress}
                 placeholder="Ask about healthcare, appointments, or our services..."
-                className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#0F62FE] focus:border-transparent text-sm"
-                disabled={isLoading}
+                className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#0F62FE] focus:border-transparent text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                disabled={isLoading || rateLimitCooldown}
                 maxLength={500}
               />
               <button
                 onClick={handleSendMessage}
-                disabled={!inputValue.trim() || isLoading}
+                disabled={!inputValue.trim() || isLoading || rateLimitCooldown}
                 className="bg-[#0F62FE] text-white px-4 py-2 rounded-lg hover:bg-[#0353E9] disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2 min-w-[60px] justify-center"
                 aria-label="Send message"
               >
@@ -241,7 +279,7 @@ const KromiumChatbot = () => {
               </button>
             </div>
             <div className="text-xs text-gray-500 mt-2 text-center">
-              Ask me about healthcare, appointments, or Kromium Health services
+              {rateLimitCooldown ? 'Cooling down...' : 'Ask me about healthcare, appointments, or Kromium Health services'}
             </div>
           </div>
         </div>
