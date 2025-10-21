@@ -1,5 +1,5 @@
 // ============================================
-// FILE: backend/routes/chat.js (UPDATED WITH HISTORY)
+// FILE: backend/routes/chat.js (UPDATED WITH GROQ AI)
 // ============================================
 const express = require('express');
 const router = express.Router();
@@ -8,10 +8,11 @@ const Groq = require('groq-sdk');
 const ChatHistory = require('../models/ChatHistory');
 const { protect } = require('../middleware/auth');
 
-// Rate limiting
+
+// VERY GENEROUS Rate limiting for development/testing
 const chatLimiter = rateLimit({
-  windowMs: 1 * 60 * 1000,
-  max: 100,
+  windowMs: 1 * 60 * 1000, // 1 minute window
+  max: 100, // 100 requests per minute (very generous for testing)
   message: {
     success: false,
     reply: 'Too many chat requests. Please wait a moment before trying again.',
@@ -20,7 +21,7 @@ const chatLimiter = rateLimit({
   legacyHeaders: false,
   skipSuccessfulRequests: false,
   skipFailedRequests: true,
-  
+
   handler: (req, res) => {
     res.status(429).json({
       success: false,
@@ -34,6 +35,7 @@ const groq = new Groq({
   apiKey: process.env.GROQ_API_KEY || 'gsk_placeholder',
 });
 
+// System prompt for healthcare-focused AI
 const SYSTEM_PROMPT = `You are Kromium Assistant, a friendly healthcare AI that helps users with digital medical services, teleconsultation, and health-related questions. 
 
 Your responsibilities:
@@ -53,7 +55,7 @@ Important guidelines:
 - Use a warm, professional tone`;
 
 // @route   POST /api/chat
-// @desc    Handle chatbot messages with history storage
+// @desc    Handle chatbot messages
 // @access  Protected (requires authentication)
 router.post('/', protect, chatLimiter, async (req, res) => {
   try {
@@ -68,6 +70,7 @@ router.post('/', protect, chatLimiter, async (req, res) => {
       });
     }
 
+    // Check message length
     if (message.length > 500) {
       return res.status(400).json({
         success: false,
@@ -75,6 +78,7 @@ router.post('/', protect, chatLimiter, async (req, res) => {
       });
     }
 
+    // Check if Groq API key is configured
     if (!process.env.GROQ_API_KEY || process.env.GROQ_API_KEY === 'gsk_placeholder') {
       console.error('Groq API key not configured');
       return res.status(500).json({
@@ -104,7 +108,7 @@ router.post('/', protect, chatLimiter, async (req, res) => {
     // Store chat history in database
     try {
       let chatHistory = await ChatHistory.findOne({ user: userId });
-      
+
       const userMessage = {
         id: Date.now().toString(),
         text: message.trim(),
@@ -145,6 +149,7 @@ router.post('/', protect, chatLimiter, async (req, res) => {
   } catch (error) {
     console.error('Chat API Error:', error.message);
 
+    // Handle specific Groq errors
     if (error.status === 429) {
       return res.status(429).json({
         success: false,
@@ -160,6 +165,7 @@ router.post('/', protect, chatLimiter, async (req, res) => {
       });
     }
 
+    // Generic error response
     res.status(500).json({
       success: false,
       reply: "I'm having trouble processing your request. Please try again.",
@@ -233,4 +239,4 @@ router.get('/health', (req, res) => {
   });
 });
 
-module.exports = router
+module.exports = router;
