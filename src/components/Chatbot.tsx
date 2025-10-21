@@ -9,7 +9,7 @@ interface Message {
 }
 
 // Always use the deployed backend URL
-const API_URL = 'https://healthlink-kromium-backend.onrender.com';
+const API_URL = 'https://healthlink-kromium-backend-k5ig.onrender.com/api';
 
 const KromiumChatbot = () => {
   const [isOpen, setIsOpen] = useState(false);
