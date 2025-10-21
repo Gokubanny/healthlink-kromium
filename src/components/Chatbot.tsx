@@ -123,7 +123,8 @@ const KromiumChatbot = () => {
     try {
       console.log('Sending to:', '/chat');
       
-      const response = await api.post('/chat', { 
+      const endpoint = isAuthenticated ? '/chat' : '/chat/guest';
+      const response = await api.post(endpoint, { 
         message: userMessage.text 
       });
 

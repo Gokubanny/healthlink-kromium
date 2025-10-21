@@ -1,5 +1,5 @@
 // ============================================
-// FILE: backend/routes/chat.js (UPDATED WITH GROQ AI)
+// FILE: backend/routes/chat.js (UPDATED - PROPER AUTH HANDLING)
 // ============================================
 const express = require('express');
 const router = express.Router();
@@ -7,7 +7,6 @@ const rateLimit = require('express-rate-limit');
 const Groq = require('groq-sdk');
 const ChatHistory = require('../models/ChatHistory');
 const { protect } = require('../middleware/auth');
-
 
 // VERY GENEROUS Rate limiting for development/testing
 const chatLimiter = rateLimit({
@@ -21,7 +20,6 @@ const chatLimiter = rateLimit({
   legacyHeaders: false,
   skipSuccessfulRequests: false,
   skipFailedRequests: true,
-
   handler: (req, res) => {
     res.status(429).json({
       success: false,
@@ -105,7 +103,7 @@ router.post('/', protect, chatLimiter, async (req, res) => {
       throw new Error('No response from AI');
     }
 
-    // Store chat history in database
+    // Store chat history in database (only for authenticated users)
     try {
       let chatHistory = await ChatHistory.findOne({ user: userId });
 
@@ -237,6 +235,74 @@ router.get('/health', (req, res) => {
     service: 'Kromium Assistant (Groq AI)',
     apiKeyConfigured: hasApiKey,
   });
+});
+
+// @route   POST /api/chat/guest
+// @desc    Handle guest chatbot messages (no auth required)
+// @access  Public
+router.post('/guest', chatLimiter, async (req, res) => {
+  try {
+    const { message } = req.body;
+
+    // Validate input
+    if (!message || typeof message !== 'string' || message.trim().length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'Please provide a valid message',
+      });
+    }
+
+    // Check message length
+    if (message.length > 500) {
+      return res.status(400).json({
+        success: false,
+        message: 'Message too long. Please keep it under 500 characters.',
+      });
+    }
+
+    // Check if Groq API key is configured
+    if (!process.env.GROQ_API_KEY || process.env.GROQ_API_KEY === 'gsk_placeholder') {
+      console.error('Groq API key not configured');
+      return res.status(500).json({
+        success: false,
+        reply: "I'm currently unavailable. Please try again later.",
+      });
+    }
+
+    // Call Groq API
+    const completion = await groq.chat.completions.create({
+      model: 'llama-3.3-70b-versatile',
+      messages: [
+        { role: 'system', content: SYSTEM_PROMPT },
+        { role: 'user', content: message.trim() },
+      ],
+      max_tokens: 300,
+      temperature: 0.7,
+      top_p: 1,
+    });
+
+    const reply = completion.choices[0]?.message?.content?.trim();
+
+    if (!reply) {
+      throw new Error('No response from AI');
+    }
+
+    // Guest messages are NOT saved to database
+
+    res.json({
+      success: true,
+      reply,
+      guest: true, // Indicate this is a guest session
+    });
+
+  } catch (error) {
+    console.error('Guest Chat API Error:', error.message);
+    // ... error handling (same as above)
+    res.status(500).json({
+      success: false,
+      reply: "I'm having trouble processing your request. Please try again.",
+    });
+  }
 });
 
 module.exports = router;
