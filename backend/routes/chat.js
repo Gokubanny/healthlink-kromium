@@ -1,15 +1,17 @@
 // ============================================
-// FILE: backend/routes/chat.js (UPDATED WITH GROQ AI)
+// FILE: backend/routes/chat.js (UPDATED WITH HISTORY)
 // ============================================
 const express = require('express');
 const router = express.Router();
 const rateLimit = require('express-rate-limit');
 const Groq = require('groq-sdk');
+const ChatHistory = require('../models/ChatHistory');
+const { protect } = require('../middleware/auth');
 
-// VERY GENEROUS Rate limiting for development/testing
+// Rate limiting
 const chatLimiter = rateLimit({
-  windowMs: 1 * 60 * 1000, // 1 minute window
-  max: 100, // 100 requests per minute (very generous for testing)
+  windowMs: 1 * 60 * 1000,
+  max: 100,
   message: {
     success: false,
     reply: 'Too many chat requests. Please wait a moment before trying again.',
@@ -32,7 +34,6 @@ const groq = new Groq({
   apiKey: process.env.GROQ_API_KEY || 'gsk_placeholder',
 });
 
-// System prompt for healthcare-focused AI
 const SYSTEM_PROMPT = `You are Kromium Assistant, a friendly healthcare AI that helps users with digital medical services, teleconsultation, and health-related questions. 
 
 Your responsibilities:
@@ -52,11 +53,12 @@ Important guidelines:
 - Use a warm, professional tone`;
 
 // @route   POST /api/chat
-// @desc    Handle chatbot messages
-// @access  Public (with rate limiting)
-router.post('/', chatLimiter, async (req, res) => {
+// @desc    Handle chatbot messages with history storage
+// @access  Protected (requires authentication)
+router.post('/', protect, chatLimiter, async (req, res) => {
   try {
     const { message } = req.body;
+    const userId = req.user.id;
 
     // Validate input
     if (!message || typeof message !== 'string' || message.trim().length === 0) {
@@ -66,7 +68,6 @@ router.post('/', chatLimiter, async (req, res) => {
       });
     }
 
-    // Check message length
     if (message.length > 500) {
       return res.status(400).json({
         success: false,
@@ -74,7 +75,6 @@ router.post('/', chatLimiter, async (req, res) => {
       });
     }
 
-    // Check if Groq API key is configured
     if (!process.env.GROQ_API_KEY || process.env.GROQ_API_KEY === 'gsk_placeholder') {
       console.error('Groq API key not configured');
       return res.status(500).json({
@@ -85,7 +85,7 @@ router.post('/', chatLimiter, async (req, res) => {
 
     // Call Groq API
     const completion = await groq.chat.completions.create({
-      model: 'llama-3.3-70b-versatile', // Fast and accurate model
+      model: 'llama-3.3-70b-versatile',
       messages: [
         { role: 'system', content: SYSTEM_PROMPT },
         { role: 'user', content: message.trim() },
@@ -101,6 +101,42 @@ router.post('/', chatLimiter, async (req, res) => {
       throw new Error('No response from AI');
     }
 
+    // Store chat history in database
+    try {
+      let chatHistory = await ChatHistory.findOne({ user: userId });
+      
+      const userMessage = {
+        id: Date.now().toString(),
+        text: message.trim(),
+        sender: 'user',
+        timestamp: new Date(),
+      };
+
+      const botMessage = {
+        id: (Date.now() + 1).toString(),
+        text: reply,
+        sender: 'bot',
+        timestamp: new Date(),
+      };
+
+      if (!chatHistory) {
+        // Create new chat history
+        chatHistory = await ChatHistory.create({
+          user: userId,
+          messages: [userMessage, botMessage],
+        });
+      } else {
+        // Append to existing history
+        chatHistory.messages.push(userMessage, botMessage);
+        await chatHistory.save();
+      }
+
+      console.log(`✅ Chat history saved for user ${userId}`);
+    } catch (historyError) {
+      console.error('Error saving chat history:', historyError);
+      // Don't fail the request if history save fails
+    }
+
     res.json({
       success: true,
       reply,
@@ -109,7 +145,6 @@ router.post('/', chatLimiter, async (req, res) => {
   } catch (error) {
     console.error('Chat API Error:', error.message);
 
-    // Handle specific Groq errors
     if (error.status === 429) {
       return res.status(429).json({
         success: false,
@@ -125,10 +160,62 @@ router.post('/', chatLimiter, async (req, res) => {
       });
     }
 
-    // Generic error response
     res.status(500).json({
       success: false,
       reply: "I'm having trouble processing your request. Please try again.",
+    });
+  }
+});
+
+// @route   GET /api/chat/history
+// @desc    Get user's chat history
+// @access  Protected
+router.get('/history', protect, async (req, res) => {
+  try {
+    const userId = req.user.id;
+
+    const chatHistory = await ChatHistory.findOne({ user: userId });
+
+    if (!chatHistory) {
+      return res.json({
+        success: true,
+        messages: [],
+      });
+    }
+
+    res.json({
+      success: true,
+      messages: chatHistory.messages,
+    });
+
+  } catch (error) {
+    console.error('Error fetching chat history:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch chat history',
+    });
+  }
+});
+
+// @route   DELETE /api/chat/history
+// @desc    Clear user's chat history
+// @access  Protected
+router.delete('/history', protect, async (req, res) => {
+  try {
+    const userId = req.user.id;
+
+    await ChatHistory.findOneAndDelete({ user: userId });
+
+    res.json({
+      success: true,
+      message: 'Chat history cleared successfully',
+    });
+
+  } catch (error) {
+    console.error('Error clearing chat history:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to clear chat history',
     });
   }
 });
@@ -146,4 +233,4 @@ router.get('/health', (req, res) => {
   });
 });
 
-module.exports = router;
+module.exports = router

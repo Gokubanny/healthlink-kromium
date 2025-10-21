@@ -1,5 +1,10 @@
+// ============================================
+// FILE: src/components/Chatbot.tsx (UPDATED)
+// ============================================
 import React, { useState, useEffect, useRef } from 'react';
 import { X, Send, Loader2 } from 'lucide-react';
+import { useAuth } from '@/context/AuthContext';
+import api from '@/lib/api';
 
 interface Message {
   id: string;
@@ -8,36 +13,56 @@ interface Message {
   timestamp: Date;
 }
 
-const API_URL = 'https://healthlink-kromium-backend-k5ig.onrender.com/api';
-
 const KromiumChatbot = () => {
+  const { isAuthenticated, user } = useAuth();
   const [isOpen, setIsOpen] = useState(false);
   const [messages, setMessages] = useState<Message[]>([]);
   const [inputValue, setInputValue] = useState('');
   const [isTyping, setIsTyping] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [rateLimitCooldown, setRateLimitCooldown] = useState(false);
+  const [historyLoaded, setHistoryLoaded] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const lastRequestTime = useRef<number>(0);
 
+  // Load chat history from backend when user opens chat
   useEffect(() => {
-    const savedMessages = localStorage.getItem('kromium-chat-history');
-    if (savedMessages) {
-      try {
-        const parsed = JSON.parse(savedMessages);
-        setMessages(parsed.map((msg: any) => ({
-          ...msg,
-          timestamp: new Date(msg.timestamp)
-        })));
-      } catch (error) {
-        console.error('Error loading chat history:', error);
-        initializeGreeting();
-      }
-    } else {
+    if (isOpen && isAuthenticated && !historyLoaded) {
+      loadChatHistory();
+    }
+  }, [isOpen, isAuthenticated]);
+
+  // Initialize greeting for non-authenticated users
+  useEffect(() => {
+    if (!isAuthenticated && messages.length === 0) {
       initializeGreeting();
     }
-  }, []);
+  }, [isAuthenticated]);
+
+  const loadChatHistory = async () => {
+    try {
+      console.log('📜 Loading chat history from backend...');
+      const response = await api.get('/chat/history');
+      
+      if (response.data.success && response.data.messages.length > 0) {
+        const loadedMessages = response.data.messages.map((msg: any) => ({
+          ...msg,
+          timestamp: new Date(msg.timestamp)
+        }));
+        setMessages(loadedMessages);
+        console.log(`✅ Loaded ${loadedMessages.length} messages from backend`);
+      } else {
+        // No history, show greeting
+        initializeGreeting();
+      }
+      setHistoryLoaded(true);
+    } catch (error) {
+      console.error('Error loading chat history:', error);
+      initializeGreeting();
+      setHistoryLoaded(true);
+    }
+  };
 
   const initializeGreeting = () => {
     const greeting: Message = {
@@ -48,12 +73,6 @@ const KromiumChatbot = () => {
     };
     setMessages([greeting]);
   };
-
-  useEffect(() => {
-    if (messages.length > 0) {
-      localStorage.setItem('kromium-chat-history', JSON.stringify(messages));
-    }
-  }, [messages]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -67,6 +86,18 @@ const KromiumChatbot = () => {
 
   const handleSendMessage = async () => {
     if (!inputValue.trim() || isLoading || rateLimitCooldown) return;
+
+    // Check if user is authenticated
+    if (!isAuthenticated) {
+      const errorMessage: Message = {
+        id: Date.now().toString(),
+        text: "Please sign in to use the chat assistant. This helps us provide you with personalized healthcare support.",
+        sender: 'bot',
+        timestamp: new Date()
+      };
+      setMessages(prev => [...prev, errorMessage]);
+      return;
+    }
 
     // Enforce minimum 1 second delay between requests
     const now = Date.now();
@@ -90,20 +121,15 @@ const KromiumChatbot = () => {
     lastRequestTime.current = Date.now();
 
     try {
-      console.log('Sending to:', `${API_URL}/chat`);
+      console.log('Sending to:', '/chat');
       
-      const response = await fetch(`${API_URL}/chat`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ message: userMessage.text }),
+      const response = await api.post('/chat', { 
+        message: userMessage.text 
       });
 
       console.log('Response status:', response.status);
 
       if (response.status === 429) {
-        // Rate limited - show friendly message and set cooldown
         setRateLimitCooldown(true);
         setIsTyping(false);
         
@@ -116,7 +142,6 @@ const KromiumChatbot = () => {
         
         setMessages(prev => [...prev, cooldownMessage]);
         
-        // Auto-clear cooldown after 10 seconds
         setTimeout(() => {
           setRateLimitCooldown(false);
         }, 10000);
@@ -125,12 +150,11 @@ const KromiumChatbot = () => {
         return;
       }
 
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.message || `Server error: ${response.status}`);
+      if (!response.data.success) {
+        throw new Error(response.data.message || 'Server error');
       }
 
-      const data = await response.json();
+      const data = response.data;
       console.log('Response data:', data);
       
       setIsTyping(false);
@@ -143,13 +167,24 @@ const KromiumChatbot = () => {
       };
 
       setMessages(prev => [...prev, botMessage]);
-    } catch (error) {
+      
+      console.log('✅ Chat message saved to backend');
+      
+    } catch (error: any) {
       console.error('Chatbot error:', error);
       setIsTyping(false);
       
+      let errorText = "Sorry, I'm having trouble connecting. Please try again later.";
+      
+      if (error.response?.status === 401) {
+        errorText = "Your session has expired. Please sign in again to continue chatting.";
+      } else if (error.response?.data?.message) {
+        errorText = error.response.data.message;
+      }
+      
       const errorMessage: Message = {
         id: (Date.now() + 1).toString(),
-        text: "Sorry, I'm having trouble connecting. Please try again later.",
+        text: errorText,
         sender: 'bot',
         timestamp: new Date()
       };
@@ -166,10 +201,24 @@ const KromiumChatbot = () => {
     }
   };
 
-  const clearChatHistory = () => {
-    setMessages([]);
-    initializeGreeting();
-    localStorage.removeItem('kromium-chat-history');
+  const clearChatHistory = async () => {
+    if (!isAuthenticated) {
+      setMessages([]);
+      initializeGreeting();
+      return;
+    }
+
+    try {
+      await api.delete('/chat/history');
+      setMessages([]);
+      initializeGreeting();
+      console.log('✅ Chat history cleared from backend');
+    } catch (error) {
+      console.error('Error clearing chat history:', error);
+      // Still clear locally even if backend fails
+      setMessages([]);
+      initializeGreeting();
+    }
   };
 
   return (
@@ -186,7 +235,9 @@ const KromiumChatbot = () => {
               </div>
               <div>
                 <h3 className="font-semibold text-lg">Kromium Assistant</h3>
-                <p className="text-xs text-white/80">Healthcare Support</p>
+                <p className="text-xs text-white/80">
+                  {isAuthenticated ? `Hello, ${user?.firstName}!` : 'Healthcare Support'}
+                </p>
               </div>
             </div>
             <div className="flex items-center gap-2">
@@ -252,6 +303,11 @@ const KromiumChatbot = () => {
 
           {/* Input */}
           <div className="p-4 bg-white border-t rounded-b-lg">
+            {!isAuthenticated && (
+              <div className="mb-2 text-xs text-orange-600 bg-orange-50 p-2 rounded">
+                ⚠️ Please sign in to use the chat assistant
+              </div>
+            )}
             {rateLimitCooldown && (
               <div className="mb-2 text-xs text-orange-600 bg-orange-50 p-2 rounded">
                 ⏳ Please wait 10 seconds before sending another message
@@ -264,14 +320,14 @@ const KromiumChatbot = () => {
                 value={inputValue}
                 onChange={(e) => setInputValue(e.target.value)}
                 onKeyPress={handleKeyPress}
-                placeholder="Ask about healthcare, appointments, or our services..."
+                placeholder={isAuthenticated ? "Ask about healthcare..." : "Sign in to chat..."}
                 className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#0F62FE] focus:border-transparent text-sm disabled:opacity-50 disabled:cursor-not-allowed"
-                disabled={isLoading || rateLimitCooldown}
+                disabled={isLoading || rateLimitCooldown || !isAuthenticated}
                 maxLength={500}
               />
               <button
                 onClick={handleSendMessage}
-                disabled={!inputValue.trim() || isLoading || rateLimitCooldown}
+                disabled={!inputValue.trim() || isLoading || rateLimitCooldown || !isAuthenticated}
                 className="bg-[#0F62FE] text-white px-4 py-2 rounded-lg hover:bg-[#0353E9] disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2 min-w-[60px] justify-center"
                 aria-label="Send message"
               >
@@ -279,7 +335,9 @@ const KromiumChatbot = () => {
               </button>
             </div>
             <div className="text-xs text-gray-500 mt-2 text-center">
-              {rateLimitCooldown ? 'Cooling down...' : 'Ask me about healthcare, appointments, or Kromium Health services'}
+              {rateLimitCooldown ? 'Cooling down...' : 
+               !isAuthenticated ? 'Sign in to start chatting' :
+               'Ask me about healthcare, appointments, or Kromium Health services'}
             </div>
           </div>
         </div>
