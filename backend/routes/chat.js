@@ -1,21 +1,24 @@
 // ============================================
-// FILE: backend/routes/chat.js (UPDATED RATE LIMITS)
+// FILE: backend/routes/chat.js (UPDATED WITH BETTER RATE LIMITS)
 // ============================================
 const express = require('express');
 const router = express.Router();
 const rateLimit = require('express-rate-limit');
 const OpenAI = require('openai');
 
-// Rate limiting: More generous limits for development
+// IMPROVED Rate limiting with more generous limits
 const chatLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: process.env.NODE_ENV === 'production' ? 20 : 100, // 20 in production, 100 in development
+  windowMs: 1 * 60 * 1000, // 1 minute window
+  max: 20, // 20 requests per minute (much more generous)
   message: {
     success: false,
-    message: 'Too many requests. Please try again later.',
+    message: 'Too many chat requests. Please wait a moment before trying again.',
   },
   standardHeaders: true,
   legacyHeaders: false,
+  // Skip rate limiting for successful requests with small delays
+  skipSuccessfulRequests: false,
+  skipFailedRequests: true, // Don't count failed requests
 });
 
 // Initialize OpenAI with v4+ syntax
