@@ -1,5 +1,5 @@
 // ============================================
-// FILE: src/components/Chatbot.tsx (UPDATED)
+// FILE: src/components/Chatbot.tsx (UPDATED - FIXED AUTH)
 // ============================================
 import React, { useState, useEffect, useRef } from 'react';
 import { X, Send, Loader2 } from 'lucide-react';
@@ -41,6 +41,14 @@ const KromiumChatbot = () => {
   }, [isAuthenticated]);
 
   const loadChatHistory = async () => {
+    // Only load history if user is authenticated
+    if (!isAuthenticated) {
+      console.log('👤 User not authenticated, skipping history load');
+      initializeGreeting();
+      setHistoryLoaded(true);
+      return;
+    }
+
     try {
       console.log('📜 Loading chat history from backend...');
       const response = await api.get('/chat/history');
