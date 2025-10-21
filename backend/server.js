@@ -3,20 +3,22 @@
 // ============================================
 const express = require('express');
 const mongoose = require('mongoose');
-const cors = require('cors'); // Add this line
+const cors = require('cors');
 const doctorsRoutes = require('./routes/doctors');
 const User = require('./models/User');
 
 const app = express();
 
 // ============================================
-// STEP 1: CORS MIDDLEWARE (USING CORS PACKAGE - FIXED)
+// STEP 1: CORS MIDDLEWARE (UPDATED WITH ALL ORIGINS)
 // ============================================
 app.use(cors({
   origin: [
     'https://healthlink-kromium.onrender.com',
     'http://localhost:5173',
     'http://localhost:3000',
+    'http://10.192.160.141:8080', // ADDED: Your local IP
+    'https://healthlink-kromium-backend-k5ig.onrender.com', // ADDED: Your actual backend URL
     'https://healthlink-kromium-backend.onrender.com'
   ],
   credentials: true,
@@ -342,6 +344,9 @@ app.listen(PORT, '0.0.0.0', () => {
   console.log(`   - https://healthlink-kromium.onrender.com`);
   console.log(`   - http://localhost:5173`);
   console.log(`   - http://localhost:3000`);
+  console.log(`   - http://10.192.160.141:8080`);
+  console.log(`   - https://healthlink-kromium-backend-k5ig.onrender.com`);
+  console.log(`   - https://healthlink-kromium-backend.onrender.com`);
   console.log(`📡 Preflight: GLOBALLY HANDLED`);
   console.log('🚀 =================================\n');
   
