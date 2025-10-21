@@ -1,10 +1,11 @@
 // ============================================
-// FILE: src/context/AuthContext.tsx
+// FILE: src/context/AuthContext.tsx (FIXED)
 // ============================================
 import { createContext, useContext, useState, useEffect, ReactNode } from "react";
 import { useNavigate } from "react-router-dom";
 import authService from "@/services/authService";
 import { toast } from "sonner";
+import api from "@/lib/api";
 
 interface User {
   id: string;
@@ -36,23 +37,51 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const navigate = useNavigate();
 
   useEffect(() => {
-    const storedUser = localStorage.getItem("user");
-    const token = localStorage.getItem("token");
-    
-    if (storedUser && token) {
-      setUser(JSON.parse(storedUser));
-    }
-    setIsLoading(false);
+    const checkAuth = async () => {
+      const storedUser = localStorage.getItem("user");
+      const token = localStorage.getItem("token");
+      
+      if (storedUser && token) {
+        try {
+          // Verify token is still valid by making a test request
+          const response = await api.get('/api/users/profile');
+          if (response.data.success) {
+            setUser(JSON.parse(storedUser));
+            console.log('✅ User authenticated from stored token');
+          } else {
+            // Token expired, clear storage
+            console.log('❌ Token expired, clearing storage');
+            localStorage.removeItem('token');
+            localStorage.removeItem('user');
+          }
+        } catch (error: any) {
+          console.log('❌ Token validation failed:', error.response?.status);
+          // Token is invalid, clear storage
+          localStorage.removeItem('token');
+          localStorage.removeItem('user');
+        }
+      }
+      setIsLoading(false);
+    };
+
+    checkAuth();
   }, []);
 
   const login = async (email: string, password: string) => {
     try {
+      setIsLoading(true);
       const response = await authService.login(email, password);
       
-      if (response.success) {
+      if (response.success && response.token) {
+        // Store token and user data
+        localStorage.setItem("token", response.token);
+        localStorage.setItem("user", JSON.stringify(response.user));
         setUser(response.user as User);
-        toast.success("Login successful! 🎉");
         
+        console.log('✅ Login successful - token stored:', response.token.substring(0, 20) + '...');
+        toast.success(`Welcome back, ${response.user.firstName}! 🎉`);
+        
+        // Navigate based on role
         if (response.user.role === "doctor") {
           navigate("/dashboard/doctor");
         } else {
@@ -60,19 +89,29 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         }
       }
     } catch (error: any) {
+      console.error('❌ Login error:', error);
       toast.error(error.message || "Login failed. Please try again.");
       throw error;
+    } finally {
+      setIsLoading(false);
     }
   };
 
   const signup = async (userData: any) => {
     try {
+      setIsLoading(true);
       const response = await authService.register(userData);
       
-      if (response.success) {
+      if (response.success && response.token) {
+        // Store token and user data
+        localStorage.setItem("token", response.token);
+        localStorage.setItem("user", JSON.stringify(response.user));
         setUser(response.user as User);
+        
+        console.log('✅ Registration successful - token stored');
         toast.success("Account created successfully! 🎉");
         
+        // Navigate based on role
         if (response.user.role === "doctor") {
           navigate("/dashboard/doctor");
         } else {
@@ -80,8 +119,11 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         }
       }
     } catch (error: any) {
+      console.error('❌ Registration error:', error);
       toast.error(error.message || "Registration failed. Please try again.");
       throw error;
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -90,12 +132,17 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       const updatedUser = { ...user, ...updates };
       localStorage.setItem("user", JSON.stringify(updatedUser));
       setUser(updatedUser);
+      toast.success("Profile updated successfully!");
     }
   };
 
   const logout = () => {
-    authService.logout();
+    // Clear all auth data
+    localStorage.removeItem("token");
+    localStorage.removeItem("user");
     setUser(null);
+    
+    console.log('✅ User logged out - storage cleared');
     toast.info("Logged out successfully");
     navigate("/");
   };
@@ -103,7 +150,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   return (
     <AuthContext.Provider value={{ 
       user, 
-      isAuthenticated: !!user, 
+      isAuthenticated: !!user && !!localStorage.getItem('token'), 
       login, 
       signup, 
       logout, 

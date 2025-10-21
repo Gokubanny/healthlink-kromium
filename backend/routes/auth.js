@@ -1,5 +1,5 @@
 // ============================================
-// FILE: backend/routes/auth.js (UPDATED)
+// FILE: backend/routes/auth.js (FIXED TOKEN GENERATION)
 // ============================================
 const express = require('express');
 const router = express.Router();
@@ -9,32 +9,74 @@ const User = require('../models/User');
 
 // Generate JWT Token
 const generateToken = (id) => {
-  return jwt.sign({ id }, process.env.JWT_SECRET || 'fallback-secret', {
-    expiresIn: process.env.JWT_EXPIRE || '30d',
-  });
+  const secret = process.env.JWT_SECRET || 'fallback-secret-for-development';
+  const expiresIn = process.env.JWT_EXPIRE || '30d';
+  
+  console.log('🔐 Generating token for user:', id);
+  const token = jwt.sign({ id }, secret, { expiresIn });
+  
+  console.log('✅ Token generated successfully, expires in:', expiresIn);
+  return token;
 };
 
 // Simple test route
 router.get('/test', (req, res) => {
   res.json({
     success: true,
-    message: 'Auth route is working!'
+    message: 'Auth route is working!',
+    timestamp: new Date().toISOString()
   });
 });
 
 // @route   GET /api/auth/me
-// @desc    Get current user (protected route example)
+// @desc    Get current user profile
 // @access  Private
 router.get('/me', async (req, res) => {
   try {
-    // For now, this is a public endpoint for testing
-    // In production, you'd add the protect middleware
-    res.json({
-      success: true,
-      message: 'Auth me endpoint is working',
-      user: null // You'd get this from the token
-    });
+    // This would normally be protected, but for testing we'll make it public
+    const token = req.headers.authorization?.split(' ')[1];
+    
+    if (!token) {
+      return res.status(401).json({
+        success: false,
+        message: 'No token provided'
+      });
+    }
+
+    try {
+      const decoded = jwt.verify(token, process.env.JWT_SECRET || 'fallback-secret');
+      const user = await User.findById(decoded.id).select('-password');
+      
+      if (!user) {
+        return res.status(404).json({
+          success: false,
+          message: 'User not found'
+        });
+      }
+
+      res.json({
+        success: true,
+        user: {
+          id: user._id,
+          firstName: user.firstName,
+          lastName: user.lastName,
+          email: user.email,
+          role: user.role,
+          phone: user.phone,
+          specialty: user.specialty,
+          profilePicture: user.profilePicture,
+          isVerified: user.isVerified,
+        }
+      });
+    } catch (tokenError) {
+      return res.status(401).json({
+        success: false,
+        message: 'Invalid token'
+      });
+    }
+    
   } catch (error) {
+    console.error('Auth me error:', error);
     res.status(500).json({
       success: false,
       message: 'Server error'
@@ -54,8 +96,15 @@ router.post(
   ],
   async (req, res) => {
     try {
+      console.log('📝 Registration attempt received:', {
+        email: req.body.email,
+        role: req.body.role,
+        firstName: req.body.firstName
+      });
+
       const errors = validationResult(req);
       if (!errors.isEmpty()) {
+        console.log('❌ Validation errors:', errors.array());
         return res.status(400).json({
           success: false,
           errors: errors.array(),
@@ -78,6 +127,7 @@ router.post(
       // Check if user exists
       const userExists = await User.findOne({ email });
       if (userExists) {
+        console.log('❌ User already exists:', email);
         return res.status(400).json({
           success: false,
           message: 'User already exists with this email',
@@ -114,6 +164,7 @@ router.post(
 
       // Create user
       const user = await User.create(userData);
+      console.log('✅ User created in database:', user._id);
 
       // Generate token
       const token = generateToken(user._id);
@@ -132,9 +183,12 @@ router.post(
           profilePicture: user.profilePicture,
           isVerified: user.isVerified,
         },
+        message: 'User registered successfully!'
       });
+      
+      console.log('🎉 Registration completed successfully for:', email);
     } catch (error) {
-      console.error('Registration error:', error);
+      console.error('❌ Registration error:', error);
       res.status(500).json({
         success: false,
         message: 'Server error during registration',
@@ -153,8 +207,11 @@ router.post(
   ],
   async (req, res) => {
     try {
+      console.log('🔐 Login attempt received for:', req.body.email);
+
       const errors = validationResult(req);
       if (!errors.isEmpty()) {
+        console.log('❌ Login validation errors:', errors.array());
         return res.status(400).json({
           success: false,
           errors: errors.array(),
@@ -166,23 +223,27 @@ router.post(
       // Check for user with password
       const user = await User.findOne({ email }).select('+password');
       if (!user) {
+        console.log('❌ User not found:', email);
         return res.status(401).json({
           success: false,
-          message: 'Invalid credentials',
+          message: 'Invalid email or password',
         });
       }
 
       // Check password
       const isMatch = await user.matchPassword(password);
       if (!isMatch) {
+        console.log('❌ Password mismatch for:', email);
         return res.status(401).json({
           success: false,
-          message: 'Invalid credentials',
+          message: 'Invalid email or password',
         });
       }
 
       // Generate token
       const token = generateToken(user._id);
+
+      console.log('✅ Login successful for:', email);
 
       res.status(200).json({
         success: true,
@@ -198,9 +259,10 @@ router.post(
           profilePicture: user.profilePicture,
           isVerified: user.isVerified,
         },
+        message: 'Login successful!'
       });
     } catch (error) {
-      console.error('Login error:', error);
+      console.error('❌ Login error:', error);
       res.status(500).json({
         success: false,
         message: 'Server error during login',
