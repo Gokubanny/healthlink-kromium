@@ -1,5 +1,5 @@
 import { Link } from "react-router-dom";
-import { Button } from "@/components/ui/button"; // ✅ CORRECT IMPORT
+import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
@@ -10,6 +10,7 @@ import { Calendar, FileText, Heart, Stethoscope, User, Clock, Star, TrendingUp, 
 import { useState, useEffect } from "react";
 import api from "@/lib/api";
 import { toast } from "sonner";
+import BookingForm from "@/components/BookingForm";
 
 interface Doctor {
   _id: string;
@@ -156,6 +157,27 @@ const PatientDashboard = () => {
       setHealthScore(score);
     }
   }, [healthMetrics, appointments, loading, appointmentsLoading]);
+
+  // Refresh appointments after booking
+  const handleBookingSuccess = () => {
+    fetchAppointments();
+  };
+
+  const fetchAppointments = async () => {
+    try {
+      setAppointmentsLoading(true);
+      const response = await api.get('/appointments/my-appointments');
+      if (response.data.success) {
+        setAppointments(response.data.appointments || []);
+      }
+    } catch (err: any) {
+      if (err.response?.status !== 404) {
+        toast.error('Failed to load appointments');
+      }
+    } finally {
+      setAppointmentsLoading(false);
+    }
+  };
 
   // Get recommended doctors and upcoming appointments
   const recommendedDoctors = doctors.slice(0, 3);
@@ -387,11 +409,10 @@ const PatientDashboard = () => {
                                 </span>
                               </div>
                             )}
-                            <Link to={`/doctors/${doctor._id}`}>
-                              <Button size="sm" className="w-full bg-primary hover:bg-primary-hover">
-                                Book Now
-                              </Button>
-                            </Link>
+                            <BookingForm 
+                              doctor={doctor} 
+                              onBookingSuccess={handleBookingSuccess}
+                            />
                           </div>
                         ))}
                       </div>

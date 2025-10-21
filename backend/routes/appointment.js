@@ -1,5 +1,5 @@
 // ============================================
-// FILE: backend/routes/appointments.js
+// FILE: backend/routes/appointments.js (UPDATED)
 // ============================================
 const express = require('express');
 const router = express.Router();
@@ -35,6 +35,29 @@ router.get('/', protect, async (req, res) => {
     });
   } catch (error) {
     console.error('Error fetching appointments:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Server error',
+    });
+  }
+});
+
+// @route   GET /api/appointments/my-appointments
+// @desc    Get appointments for current patient
+// @access  Private (Patient only)
+router.get('/my-appointments', protect, authorize('patient'), async (req, res) => {
+  try {
+    const appointments = await Appointment.find({ patient: req.user.id })
+      .populate('doctor', 'firstName lastName specialty')
+      .sort({ appointmentDate: -1 });
+
+    res.status(200).json({
+      success: true,
+      count: appointments.length,
+      appointments,
+    });
+  } catch (error) {
+    console.error('Error fetching patient appointments:', error);
     res.status(500).json({
       success: false,
       message: 'Server error',
@@ -109,8 +132,8 @@ router.post(
         doctor: req.body.doctor,
         appointmentDate: req.body.appointmentDate,
         appointmentTime: req.body.appointmentTime,
-        type: req.body.type,
-        mode: req.body.mode,
+        type: req.body.type || 'Consultation',
+        mode: req.body.mode || 'In-person',
         reason: req.body.reason,
         notes: req.body.notes,
         location: req.body.location,
@@ -118,8 +141,13 @@ router.post(
 
       const appointment = await Appointment.create(appointmentData);
 
+      // Populate the response
+      await appointment.populate('doctor', 'firstName lastName specialty');
+      await appointment.populate('patient', 'firstName lastName email');
+
       res.status(201).json({
         success: true,
+        message: 'Appointment booked successfully!',
         appointment,
       });
     } catch (error) {
@@ -197,8 +225,46 @@ router.put('/:id', protect, async (req, res) => {
   }
 });
 
+// @route   PUT /api/appointments/:id/cancel
+// @desc    Cancel appointment
+// @access  Private
+router.put('/:id/cancel', protect, async (req, res) => {
+  try {
+    const appointment = await Appointment.findById(req.params.id);
+
+    if (!appointment) {
+      return res.status(404).json({
+        success: false,
+        message: 'Appointment not found',
+      });
+    }
+
+    // Check authorization - only patients can cancel their own appointments
+    if (appointment.patient.toString() !== req.user.id) {
+      return res.status(403).json({
+        success: false,
+        message: 'Not authorized to cancel this appointment',
+      });
+    }
+
+    appointment.status = 'Cancelled';
+    await appointment.save();
+
+    res.status(200).json({
+      success: true,
+      message: 'Appointment cancelled successfully',
+    });
+  } catch (error) {
+    console.error('Error cancelling appointment:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Server error',
+    });
+  }
+});
+
 // @route   DELETE /api/appointments/:id
-// @desc    Cancel/Delete appointment
+// @desc    Delete appointment
 // @access  Private
 router.delete('/:id', protect, async (req, res) => {
   try {

@@ -6,7 +6,7 @@ import { PatientSidebar } from "@/components/PatientSidebar";
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { FileText, Download, Eye, Plus, Upload } from "lucide-react";
 import { useState, useEffect } from "react";
-import api from "@/lib/api";
+import medicalRecordService from "@/services/medicalRecordService";
 import { toast } from "sonner";
 import {
   Dialog,
@@ -54,12 +54,12 @@ const PatientRecords = () => {
   const fetchMedicalRecords = async () => {
     try {
       setLoading(true);
-      const response = await api.get('/medical-records/my-records');
+      const response = await medicalRecordService.getMyRecords();
       
-      if (response.data.success) {
-        setRecords(response.data.records || []);
+      if (response.success) {
+        setRecords(response.records || []);
       } else {
-        throw new Error(response.data.message || 'Failed to fetch medical records');
+        throw new Error(response.message || 'Failed to fetch medical records');
       }
     } catch (error: any) {
       console.error("Error fetching medical records:", error);
@@ -118,25 +118,20 @@ const PatientRecords = () => {
 
     try {
       setUploading(true);
-      const formData = new FormData();
-      formData.append('title', newRecord.title);
-      formData.append('type', newRecord.type);
-      formData.append('date', newRecord.date);
-      formData.append('description', newRecord.description);
       
-      if (newRecord.file) {
-        formData.append('file', newRecord.file);
-      }
+      const recordData = {
+        title: newRecord.title,
+        type: newRecord.type,
+        date: newRecord.date,
+        description: newRecord.description,
+        file: newRecord.file,
+      };
 
-      const response = await api.post('/medical-records/patient-upload', formData, {
-        headers: {
-          'Content-Type': 'multipart/form-data',
-        },
-      });
+      const response = await medicalRecordService.uploadPatientRecord(recordData);
 
-      if (response.data.success) {
+      if (response.success) {
         toast.success("Medical record added successfully!");
-        setRecords([response.data.record, ...records]);
+        setRecords([response.record, ...records]);
         setIsDialogOpen(false);
         setNewRecord({
           title: "",

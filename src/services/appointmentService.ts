@@ -1,5 +1,5 @@
 // ============================================
-// FILE: src/services/appointmentService.ts
+// FILE: src/services/appointmentService.ts (UPDATED)
 // ============================================
 import api from '@/lib/api';
 
@@ -20,6 +20,11 @@ class AppointmentService {
     return response.data;
   }
 
+  async getMyAppointments() {
+    const response = await api.get('/appointments/my-appointments');
+    return response.data;
+  }
+
   async getAppointmentById(id: string) {
     const response = await api.get(`/appointments/${id}`);
     return response.data;
@@ -36,6 +41,11 @@ class AppointmentService {
   }
 
   async cancelAppointment(id: string) {
+    const response = await api.put(`/appointments/${id}/cancel`);
+    return response.data;
+  }
+
+  async deleteAppointment(id: string) {
     const response = await api.delete(`/appointments/${id}`);
     return response.data;
   }

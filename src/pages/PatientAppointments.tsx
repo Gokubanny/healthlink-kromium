@@ -1,3 +1,6 @@
+// ============================================
+// FILE: src/pages/PatientAppointments.tsx (UPDATED)
+// ============================================
 import { useState, useEffect } from "react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -6,7 +9,7 @@ import Footer from "@/components/Footer";
 import { PatientSidebar } from "@/components/PatientSidebar";
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { Calendar, Clock, MapPin, User, Video } from "lucide-react";
-import api from "@/lib/api";
+import appointmentService from "@/services/appointmentService";
 import { toast } from "sonner";
 import { Link } from "react-router-dom";
 
@@ -40,9 +43,9 @@ const PatientAppointments = () => {
   const fetchAppointments = async () => {
     try {
       setLoading(true);
-      const response = await api.get('/appointments/my-appointments');
+      const response = await appointmentService.getMyAppointments();
       console.log("Appointments response:", response);
-      setAppointments(response.data.appointments || []);
+      setAppointments(response.appointments || []);
     } catch (error: any) {
       console.error("Error fetching appointments:", error);
       if (error.response?.status !== 404) {
@@ -60,7 +63,7 @@ const PatientAppointments = () => {
     }
 
     try {
-      await api.put(`/appointments/${id}/cancel`);
+      await appointmentService.cancelAppointment(id);
       toast.success("Appointment cancelled successfully");
       fetchAppointments();
     } catch (error: any) {
@@ -71,7 +74,7 @@ const PatientAppointments = () => {
 
   const handleRescheduleAppointment = async (id: string) => {
     toast.info("Reschedule functionality coming soon!");
-    // TODO: Implement reschedule functionality
+    // TODO: Implement reschedule functionality with a modal form
   };
 
   const formatDate = (dateString: string) => {
