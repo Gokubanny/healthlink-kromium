@@ -1,3 +1,6 @@
+// ============================================
+// FILE: src/components/BookingForm.tsx (FIXED)
+// ============================================
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -83,17 +86,23 @@ const BookingForm = ({ doctor, onBookingSuccess }: BookingFormProps) => {
         notes: formData.notes,
       };
 
+      console.log("📅 Booking appointment with data:", appointmentData);
+
       const response = await appointmentService.createAppointment(appointmentData);
       
       if (response.success) {
-        toast.success("Appointment booked successfully!");
+        toast.success("Appointment booked successfully! 🎉");
         setIsOpen(false);
         resetForm();
-        onBookingSuccess?.();
+        if (onBookingSuccess) {
+          onBookingSuccess();
+        }
+      } else {
+        throw new Error(response.message || "Failed to book appointment");
       }
     } catch (error: any) {
       console.error("Error booking appointment:", error);
-      toast.error(error.response?.data?.message || "Failed to book appointment");
+      toast.error(error.response?.data?.message || "Failed to book appointment. Please try again.");
     } finally {
       setLoading(false);
     }
@@ -111,10 +120,18 @@ const BookingForm = ({ doctor, onBookingSuccess }: BookingFormProps) => {
   };
 
   const handleOpenChange = (open: boolean) => {
+    console.log("Dialog open state changed:", open);
     setIsOpen(open);
     if (!open) {
       resetForm();
     }
+  };
+
+  const handleButtonClick = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    console.log("Book Now button clicked - Opening dialog");
+    setIsOpen(true);
   };
 
   return (
@@ -123,6 +140,7 @@ const BookingForm = ({ doctor, onBookingSuccess }: BookingFormProps) => {
         <Button 
           size="sm" 
           className="w-full bg-primary hover:bg-primary-hover"
+          onClick={handleButtonClick}
         >
           Book Now
         </Button>
@@ -138,21 +156,35 @@ const BookingForm = ({ doctor, onBookingSuccess }: BookingFormProps) => {
         <form onSubmit={handleSubmit} className="space-y-4">
           {/* Date Selection */}
           <div>
-            <Label htmlFor="date">Appointment Date</Label>
+            <Label htmlFor="date">Appointment Date *</Label>
             <div className="mt-1">
               <Calendar
                 mode="single"
                 selected={selectedDate}
                 onSelect={setSelectedDate}
-                disabled={(date) => date < new Date() || date.getDay() === 0}
+                disabled={(date) => {
+                  const today = new Date();
+                  today.setHours(0, 0, 0, 0);
+                  return date < today || date.getDay() === 0;
+                }}
                 className="rounded-md border"
               />
             </div>
+            {selectedDate && (
+              <p className="text-sm text-muted-foreground mt-2">
+                Selected: {selectedDate.toLocaleDateString("en-US", {
+                  weekday: "long",
+                  year: "numeric",
+                  month: "long",
+                  day: "numeric",
+                })}
+              </p>
+            )}
           </div>
 
           {/* Time Selection */}
           <div>
-            <Label htmlFor="time">Appointment Time</Label>
+            <Label htmlFor="time">Appointment Time *</Label>
             <Select 
               value={formData.appointmentTime} 
               onValueChange={(value) => setFormData({ ...formData, appointmentTime: value })}
@@ -236,10 +268,17 @@ const BookingForm = ({ doctor, onBookingSuccess }: BookingFormProps) => {
           <div className="flex gap-2 pt-2">
             <Button 
               type="submit" 
-              className="flex-1"
+              className="flex-1 bg-primary hover:bg-primary-hover"
               disabled={loading}
             >
-              {loading ? "Booking..." : "Confirm Booking"}
+              {loading ? (
+                <>
+                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                  Booking...
+                </>
+              ) : (
+                "Confirm Booking"
+              )}
             </Button>
             <Button 
               type="button" 

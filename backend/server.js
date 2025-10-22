@@ -1,18 +1,17 @@
 // ============================================
-// FILE: backend/server.js (FIXED - USING YOUR .ENV)
+// FILE: backend/server.js (COMPLETE - ALL ROUTES)
 // ============================================
-require('dotenv').config(); // ADD THIS AT THE TOP
+require('dotenv').config();
 const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
 const jwt = require('jsonwebtoken');
-const doctorsRoutes = require('./routes/doctors');
 const User = require('./models/User');
 
 const app = express();
 
 // ============================================
-// STEP 1: CORS MIDDLEWARE (USING YOUR FRONTEND_URL)
+// CORS MIDDLEWARE
 // ============================================
 app.use(cors({
   origin: [
@@ -28,10 +27,8 @@ app.use(cors({
   allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Origin', 'Accept']
 }));
 
-// Handle preflight requests globally
 app.options('*', cors());
 
-// Additional custom CORS logging
 app.use((req, res, next) => {
   const origin = req.headers.origin;
   console.log(`🌐 ${new Date().toISOString()} - ${req.method} ${req.path} - Origin: ${origin || 'none'}`);
@@ -39,13 +36,13 @@ app.use((req, res, next) => {
 });
 
 // ============================================
-// STEP 2: Body Parsing
+// BODY PARSING
 // ============================================
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
 // ============================================
-// STEP 3: DATABASE CONNECTION (USING YOUR MONGODB_URI)
+// DATABASE CONNECTION
 // ============================================
 const MONGODB_URI = process.env.MONGODB_URI;
 
@@ -62,7 +59,7 @@ mongoose.connect(MONGODB_URI, {
 });
 
 // ============================================
-// STEP 4: JWT CONFIGURATION (USING YOUR .ENV)
+// JWT CONFIGURATION
 // ============================================
 const JWT_CONFIG = {
   secret: process.env.JWT_SECRET,
@@ -76,28 +73,65 @@ console.log('🔐 JWT Configuration:', {
 });
 
 // ============================================
-// STEP 5: ROUTES WITH ERROR HANDLING
+// LOAD ALL ROUTES
 // ============================================
-app.use('/api/doctors', doctorsRoutes);
 
-// Chat routes with better error handling
-console.log('🔄 Attempting to load chat routes...');
+// Doctors Routes
+console.log('🔄 Loading doctors routes...');
+try {
+  const doctorsRoutes = require('./routes/doctors');
+  app.use('/api/doctors', doctorsRoutes);
+  console.log('✅ Doctors routes loaded');
+} catch (error) {
+  console.error('❌ Failed to load doctors routes:', error.message);
+}
+
+// Appointment Routes
+console.log('🔄 Loading appointment routes...');
+try {
+  const appointmentRoutes = require('./routes/appointment');
+  app.use('/api/appointments', appointmentRoutes);
+  console.log('✅ Appointment routes loaded');
+} catch (error) {
+  console.error('❌ Failed to load appointment routes:', error.message);
+}
+
+// Medical Records Routes
+console.log('🔄 Loading medical records routes...');
+try {
+  const medicalRecordsRoutes = require('./routes/medicalRecords');
+  app.use('/api/medical-records', medicalRecordsRoutes);
+  console.log('✅ Medical records routes loaded');
+} catch (error) {
+  console.error('❌ Failed to load medical records routes:', error.message);
+}
+
+// Health Metrics Routes
+console.log('🔄 Loading health metrics routes...');
+try {
+  const healthMetricsRoutes = require('./routes/HealthMetric');
+  app.use('/api/health-metrics', healthMetricsRoutes);
+  console.log('✅ Health metrics routes loaded');
+} catch (error) {
+  console.error('❌ Failed to load health metrics routes:', error.message);
+}
+
+// Chat Routes
+console.log('🔄 Loading chat routes...');
 try {
   const chatRoutes = require('./routes/chat');
   app.use('/api/chat', chatRoutes);
-  console.log('✅ Chat routes loaded successfully');
+  console.log('✅ Chat routes loaded');
 } catch (error) {
   console.error('❌ Failed to load chat routes:', error.message);
-  console.log('💡 Creating fallback chat routes...');
   
   // Fallback chat routes
   const fallbackChatRouter = express.Router();
   
   fallbackChatRouter.post('/', (req, res) => {
-    console.log('💬 Fallback chat endpoint called');
     res.json({
       success: true,
-      reply: "Hello! I'm Kromium Assistant. I'm here to help with your health questions. (Fallback Mode)",
+      reply: "Hello! I'm Kromium Assistant. (Fallback Mode)",
       timestamp: new Date().toISOString()
     });
   });
@@ -106,8 +140,7 @@ try {
     res.json({
       success: true,
       status: 'fallback',
-      service: 'Kromium Assistant',
-      message: 'Using fallback chat service - main chat routes failed to load'
+      service: 'Kromium Assistant'
     });
   });
   
@@ -115,76 +148,103 @@ try {
   console.log('✅ Fallback chat routes created');
 }
 
-// Auth routes with better error handling
-console.log('🔄 Attempting to load auth routes...');
+// Auth Routes
+console.log('🔄 Loading auth routes...');
 try {
   const authRoutes = require('./routes/auth');
   app.use('/api/auth', authRoutes);
-  console.log('✅ Auth routes loaded successfully');
+  console.log('✅ Auth routes loaded');
 } catch (error) {
   console.error('❌ Failed to load auth routes:', error.message);
   
   // Fallback auth routes
   const fallbackAuthRouter = express.Router();
   
-  fallbackAuthRouter.post('/login', (req, res) => {
-    console.log('🔐 Fallback login endpoint called');
-    
-    // Generate proper JWT token using your .env secret
-    const token = jwt.sign(
-      { id: 'fallback-user-id', email: req.body.email }, 
-      JWT_CONFIG.secret,
-      { expiresIn: JWT_CONFIG.expiresIn }
-    );
-    
-    res.json({
-      success: true,
-      token: token,
-      user: {
-        id: 'fallback-user-id',
-        firstName: 'Fallback',
-        lastName: 'User',
-        email: req.body.email,
-        role: 'patient'
-      },
-      message: 'Login successful (Fallback Mode)'
-    });
+  fallbackAuthRouter.post('/login', async (req, res) => {
+    try {
+      const { email, password } = req.body;
+      const user = await User.findOne({ email }).select('+password');
+      
+      if (!user || !(await user.matchPassword(password))) {
+        return res.status(401).json({
+          success: false,
+          message: 'Invalid email or password'
+        });
+      }
+      
+      const token = jwt.sign({ id: user._id }, JWT_CONFIG.secret, { expiresIn: JWT_CONFIG.expiresIn });
+      
+      res.json({
+        success: true,
+        token,
+        user: {
+          id: user._id,
+          firstName: user.firstName,
+          lastName: user.lastName,
+          email: user.email,
+          role: user.role,
+          phone: user.phone,
+          specialty: user.specialty,
+          isVerified: user.isVerified,
+          profilePicture: user.profilePicture,
+        }
+      });
+    } catch (error) {
+      res.status(500).json({ success: false, message: 'Login failed' });
+    }
   });
   
-  fallbackAuthRouter.post('/register', (req, res) => {
-    console.log('📝 Fallback register endpoint called');
-    
-    // Generate proper JWT token using your .env secret
-    const token = jwt.sign(
-      { id: 'fallback-user-id', email: req.body.email }, 
-      JWT_CONFIG.secret,
-      { expiresIn: JWT_CONFIG.expiresIn }
-    );
-    
-    res.json({
-      success: true,
-      token: token,
-      user: {
-        id: 'fallback-user-id',
-        firstName: req.body.firstName,
-        lastName: req.body.lastName,
-        email: req.body.email,
-        role: req.body.role
-      },
-      message: 'Registration successful (Fallback Mode)'
-    });
+  fallbackAuthRouter.post('/register', async (req, res) => {
+    try {
+      const { firstName, lastName, email, password, role, phone, specialty, licenseNumber, yearsOfExperience, medicalSchool } = req.body;
+      
+      const existingUser = await User.findOne({ email });
+      if (existingUser) {
+        return res.status(400).json({
+          success: false,
+          message: 'User already exists'
+        });
+      }
+      
+      const user = await User.create({
+        firstName, lastName, email, password, role, phone,
+        specialty, licenseNumber,
+        yearsOfExperience: parseInt(yearsOfExperience) || 0,
+        medicalSchool,
+        isVerified: role === 'doctor'
+      });
+      
+      const token = jwt.sign({ id: user._id }, JWT_CONFIG.secret, { expiresIn: JWT_CONFIG.expiresIn });
+      
+      res.status(201).json({
+        success: true,
+        token,
+        user: {
+          id: user._id,
+          firstName: user.firstName,
+          lastName: user.lastName,
+          email: user.email,
+          role: user.role,
+          phone: user.phone,
+          specialty: user.specialty,
+          isVerified: user.isVerified,
+        }
+      });
+    } catch (error) {
+      res.status(500).json({ success: false, message: 'Registration failed' });
+    }
   });
   
   app.use('/api/auth', fallbackAuthRouter);
   console.log('✅ Fallback auth routes created');
 }
 
-// User routes
-console.log('🔄 Attempting to load user routes...');
+// User Routes
+console.log('🔄 Loading user routes...');
 try {
-  const userRoutes = require('./routes/users');
+  const userRoutes = require('./routes/user');
   app.use('/api/users', userRoutes);
-  console.log('✅ User routes loaded successfully');
+  console.log('✅ User routes loaded');
 } catch (error) {
   console.error('❌ Failed to load user routes:', error.message);
   
@@ -192,7 +252,6 @@ try {
   const fallbackUserRouter = express.Router();
   
   fallbackUserRouter.get('/profile', (req, res) => {
-    console.log('👤 Fallback profile endpoint called');
     res.json({
       success: true,
       user: {
@@ -210,7 +269,7 @@ try {
 }
 
 // ============================================
-// STEP 6: HEALTH CHECK ENDPOINT
+// HEALTH CHECK ENDPOINT
 // ============================================
 app.get('/api/health', (req, res) => {
   res.json({ 
@@ -226,176 +285,33 @@ app.get('/api/health', (req, res) => {
       configured: !!process.env.JWT_SECRET,
       expiresIn: process.env.JWT_EXPIRE
     },
-    yourOrigin: req.headers.origin
+    routes: {
+      auth: '/api/auth',
+      users: '/api/users',
+      doctors: '/api/doctors',
+      appointments: '/api/appointments',
+      medicalRecords: '/api/medical-records',
+      healthMetrics: '/api/health-metrics',
+      chat: '/api/chat',
+    }
   });
 });
 
 // ============================================
-// STEP 7: CORS TEST ENDPOINT
+// CORS TEST ENDPOINT
 // ============================================
 app.get('/api/cors-test', (req, res) => {
-  console.log('✅ CORS test - Checking headers');
   res.json({
     success: true,
-    message: '🎉 CORS is WORKING PERFECTLY!',
+    message: '🎉 CORS is WORKING!',
     timestamp: new Date().toISOString(),
     yourOrigin: req.headers.origin,
-    corsEnabled: true,
-    frontendUrl: process.env.FRONTEND_URL,
-    headers: req.headers
+    corsEnabled: true
   });
 });
 
 // ============================================
-// STEP 8: AUTH ENDPOINTS (FALLBACK - KEPT FOR BACKWARD COMPATIBILITY)
-// ============================================
-
-// REGISTER ENDPOINT (Fallback)
-app.post('/api/auth/register', async (req, res) => {
-  try {
-    console.log('📝 Registration attempt received');
-    
-    const { firstName, lastName, email, password, role, phone, specialty, licenseNumber, yearsOfExperience, medicalSchool } = req.body;
-    
-    console.log('📧 Registration data:', { firstName, lastName, email, role });
-    
-    // Basic validation
-    if (!firstName || !lastName || !email || !password || !role) {
-      return res.status(400).json({
-        success: false,
-        message: 'Missing required fields'
-      });
-    }
-
-    // Check if user already exists
-    const existingUser = await User.findOne({ email });
-    if (existingUser) {
-      return res.status(400).json({
-        success: false,
-        message: 'User already exists with this email'
-      });
-    }
-
-    // Create user
-    const user = await User.create({
-      firstName,
-      lastName,
-      email,
-      password,
-      role,
-      phone,
-      specialty,
-      licenseNumber,
-      yearsOfExperience: parseInt(yearsOfExperience) || 0,
-      medicalSchool,
-      isVerified: role === 'doctor'
-    });
-
-    // Generate PROPER JWT token using your .env secret
-    const token = jwt.sign(
-      { id: user._id }, 
-      JWT_CONFIG.secret,
-      { expiresIn: JWT_CONFIG.expiresIn }
-    );
-    
-    console.log('✅ User registered successfully with JWT token');
-    
-    res.status(201).json({
-      success: true,
-      message: 'User registered successfully!',
-      token,
-      user: {
-        id: user._id,
-        firstName: user.firstName,
-        lastName: user.lastName,
-        email: user.email,
-        role: user.role,
-        phone: user.phone,
-        specialty: user.specialty,
-        licenseNumber: user.licenseNumber,
-        yearsOfExperience: user.yearsOfExperience,
-        medicalSchool: user.medicalSchool,
-        isVerified: user.isVerified,
-        profilePicture: user.profilePicture,
-        createdAt: user.createdAt
-      }
-    });
-    
-  } catch (error) {
-    console.error('❌ Registration error:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Registration failed',
-      error: error.message
-    });
-  }
-});
-
-// LOGIN ENDPOINT (Fallback)
-app.post('/api/auth/login', async (req, res) => {
-  try {
-    console.log('🔐 Login attempt received');
-    
-    const { email, password } = req.body;
-    
-    if (!email || !password) {
-      return res.status(400).json({
-        success: false,
-        message: 'Email and password are required'
-      });
-    }
-
-    const user = await User.findOne({ email }).select('+password');
-    
-    if (!user || !(await user.matchPassword(password))) {
-      return res.status(401).json({
-        success: false,
-        message: 'Invalid email or password'
-      });
-    }
-    
-    // Generate PROPER JWT token using your .env secret
-    const token = jwt.sign(
-      { id: user._id }, 
-      JWT_CONFIG.secret,
-      { expiresIn: JWT_CONFIG.expiresIn }
-    );
-    
-    console.log('✅ User logged in successfully with JWT token');
-    
-    res.json({
-      success: true,
-      message: 'Login successful!',
-      token,
-      user: {
-        id: user._id,
-        firstName: user.firstName,
-        lastName: user.lastName,
-        email: user.email,
-        role: user.role,
-        phone: user.phone,
-        specialty: user.specialty,
-        licenseNumber: user.licenseNumber,
-        yearsOfExperience: user.yearsOfExperience,
-        medicalSchool: user.medicalSchool,
-        isVerified: user.isVerified,
-        profilePicture: user.profilePicture,
-        createdAt: user.createdAt
-      }
-    });
-    
-  } catch (error) {
-    console.error('❌ Login error:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Login failed',
-      error: error.message
-    });
-  }
-});
-
-// ============================================
-// STEP 9: TOKEN VERIFICATION ENDPOINT
+// TOKEN VERIFICATION ENDPOINT
 // ============================================
 app.get('/api/auth/verify', async (req, res) => {
   try {
@@ -408,7 +324,6 @@ app.get('/api/auth/verify', async (req, res) => {
       });
     }
 
-    // Verify the token
     const decoded = jwt.verify(token, JWT_CONFIG.secret);
     const user = await User.findById(decoded.id).select('-password');
     
@@ -431,12 +346,9 @@ app.get('/api/auth/verify', async (req, res) => {
         specialty: user.specialty,
         profilePicture: user.profilePicture,
         isVerified: user.isVerified,
-      },
-      message: 'Token is valid'
+      }
     });
-    
   } catch (error) {
-    console.error('❌ Token verification failed:', error.message);
     res.status(401).json({
       success: false,
       message: 'Invalid or expired token'
@@ -445,7 +357,7 @@ app.get('/api/auth/verify', async (req, res) => {
 });
 
 // ============================================
-// STEP 10: ROOT ENDPOINT
+// ROOT ENDPOINT
 // ============================================
 app.get('/', (req, res) => {
   res.json({
@@ -454,63 +366,73 @@ app.get('/', (req, res) => {
     version: '2.0.0',
     status: 'operational',
     environment: process.env.NODE_ENV,
-    cors: 'fully-enabled',
     timestamp: new Date().toISOString(),
     database: mongoose.connection.readyState === 1 ? 'Connected' : 'Disconnected',
     endpoints: {
-      root: 'GET /',
-      health: 'GET /api/health',
-      corsTest: 'GET /api/cors-test',
-      register: 'POST /api/auth/register',
-      login: 'POST /api/auth/login',
-      verify: 'GET /api/auth/verify',
-      doctors: 'GET /api/doctors',
-      specialties: 'GET /api/doctors/specialties/list',
-      chat: 'POST /api/chat',
-      chatHealth: 'GET /api/chat/health',
-      userProfile: 'GET /api/users/profile'
+      auth: {
+        register: 'POST /api/auth/register',
+        login: 'POST /api/auth/login',
+        verify: 'GET /api/auth/verify',
+      },
+      users: {
+        profile: 'GET /api/users/profile',
+        updateProfile: 'PUT /api/users/profile',
+      },
+      doctors: {
+        list: 'GET /api/doctors',
+        specialties: 'GET /api/doctors/specialties/list',
+        detail: 'GET /api/doctors/:id',
+      },
+      appointments: {
+        list: 'GET /api/appointments',
+        myAppointments: 'GET /api/appointments/my-appointments',
+        create: 'POST /api/appointments',
+        update: 'PUT /api/appointments/:id',
+        cancel: 'PUT /api/appointments/:id/cancel',
+      },
+      medicalRecords: {
+        list: 'GET /api/medical-records',
+        myRecords: 'GET /api/medical-records/my-records',
+        patientUpload: 'POST /api/medical-records/patient-upload',
+      },
+      healthMetrics: {
+        add: 'POST /api/health-metrics',
+        latest: 'GET /api/health-metrics/latest',
+      },
+      chat: {
+        send: 'POST /api/chat',
+        history: 'GET /api/chat/history',
+      }
     }
   });
 });
 
 // ============================================
-// STEP 11: 404 HANDLER
+// 404 HANDLER
 // ============================================
 app.use('*', (req, res) => {
   console.log('❌ 404 - Route not found:', req.originalUrl);
   res.status(404).json({
     success: false,
     message: `Route not found: ${req.originalUrl}`,
-    availableEndpoints: [
-      'GET /',
-      'GET /api/health',
-      'GET /api/cors-test',
-      'POST /api/auth/register',
-      'POST /api/auth/login',
-      'GET /api/auth/verify',
-      'GET /api/doctors',
-      'GET /api/doctors/specialties/list',
-      'POST /api/chat',
-      'GET /api/chat/health',
-      'GET /api/users/profile'
-    ]
+    hint: 'Visit GET / or GET /api/health for available endpoints'
   });
 });
 
 // ============================================
-// STEP 12: ERROR HANDLING MIDDLEWARE
+// ERROR HANDLING MIDDLEWARE
 // ============================================
 app.use((error, req, res, next) => {
   console.error('🚨 Unhandled Error:', error);
   res.status(500).json({
     success: false,
     message: 'Internal server error',
-    error: error.message
+    error: process.env.NODE_ENV === 'development' ? error.message : undefined
   });
 });
 
 // ============================================
-// STEP 13: START SERVER
+// START SERVER
 // ============================================
 const PORT = process.env.PORT || 5000;
 
@@ -520,25 +442,20 @@ app.listen(PORT, '0.0.0.0', () => {
   console.log(`🌍 Environment: ${process.env.NODE_ENV}`);
   console.log(`🌐 CORS: FULLY ENABLED`);
   console.log(`🗄️  MongoDB: ${mongoose.connection.readyState === 1 ? 'CONNECTED' : 'DISCONNECTED'}`);
-  console.log(`🔐 JWT: USING YOUR .ENV SECRET`);
+  console.log(`🔐 JWT: CONFIGURED`);
   console.log(`🔓 Frontend URL: ${process.env.FRONTEND_URL}`);
-  console.log(`📡 Preflight: GLOBALLY HANDLED`);
   console.log('🚀 =================================\n');
   
-  console.log('🎯 AVAILABLE ENDPOINTS:');
-  console.log('   GET  /');
-  console.log('   GET  /api/health');
-  console.log('   GET  /api/cors-test');
-  console.log('   POST /api/auth/register');
-  console.log('   POST /api/auth/login');
-  console.log('   GET  /api/auth/verify');
-  console.log('   GET  /api/doctors');
-  console.log('   GET  /api/doctors/specialties/list');
-  console.log('   POST /api/chat');
-  console.log('   GET  /api/chat/health');
-  console.log('   GET  /api/users/profile');
+  console.log('🎯 ALL ROUTES MOUNTED:');
+  console.log('   ✅ /api/auth');
+  console.log('   ✅ /api/users');
+  console.log('   ✅ /api/doctors');
+  console.log('   ✅ /api/appointments');
+  console.log('   ✅ /api/medical-records');
+  console.log('   ✅ /api/health-metrics');
+  console.log('   ✅ /api/chat');
   console.log('');
-  console.log('✅ Server is READY with proper JWT authentication!');
+  console.log('✅ Server is READY!');
 });
 
 module.exports = app;
