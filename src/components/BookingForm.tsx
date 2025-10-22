@@ -20,7 +20,7 @@ import {
 } from "@/components/ui/select";
 import { Calendar } from "@/components/ui/calendar";
 import { toast } from "sonner";
-import api from "@/lib/api";
+import appointmentService from "@/services/appointmentService";
 
 interface Doctor {
   _id: string;
@@ -83,9 +83,9 @@ const BookingForm = ({ doctor, onBookingSuccess }: BookingFormProps) => {
         notes: formData.notes,
       };
 
-      const response = await api.post('/appointments', appointmentData);
+      const response = await appointmentService.createAppointment(appointmentData);
       
-      if (response.data.success) {
+      if (response.success) {
         toast.success("Appointment booked successfully!");
         setIsOpen(false);
         resetForm();
@@ -110,13 +110,19 @@ const BookingForm = ({ doctor, onBookingSuccess }: BookingFormProps) => {
     });
   };
 
+  const handleOpenChange = (open: boolean) => {
+    setIsOpen(open);
+    if (!open) {
+      resetForm();
+    }
+  };
+
   return (
-    <Dialog open={isOpen} onOpenChange={setIsOpen}>
+    <Dialog open={isOpen} onOpenChange={handleOpenChange}>
       <DialogTrigger asChild>
         <Button 
           size="sm" 
           className="w-full bg-primary hover:bg-primary-hover"
-          onClick={() => setIsOpen(true)}
         >
           Book Now
         </Button>
@@ -138,7 +144,7 @@ const BookingForm = ({ doctor, onBookingSuccess }: BookingFormProps) => {
                 mode="single"
                 selected={selectedDate}
                 onSelect={setSelectedDate}
-                disabled={(date) => date < new Date() || date.getDay() === 0} // Disable past dates and Sundays
+                disabled={(date) => date < new Date() || date.getDay() === 0}
                 className="rounded-md border"
               />
             </div>

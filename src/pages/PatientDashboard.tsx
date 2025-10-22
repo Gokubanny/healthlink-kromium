@@ -11,6 +11,8 @@ import { useState, useEffect } from "react";
 import api from "@/lib/api";
 import { toast } from "sonner";
 import BookingForm from "@/components/BookingForm";
+import appointmentService from "@/services/appointmentService";
+import doctorService from "@/services/doctorService";
 
 interface Doctor {
   _id: string;
@@ -94,57 +96,99 @@ const PatientDashboard = () => {
     const fetchDoctors = async () => {
       try {
         setLoading(true);
-        const response = await api.get('/doctors');
-        if (response.data.success) {
+        const response = await doctorService.getAllDoctors({
+          limit: 20,
+          page: 1,
+        });
+        
+        console.log("Doctors response:", response);
+        
+        // Handle different response structures
+        if (response.doctors) {
+          setDoctors(response.doctors);
+        } else if (response.data && response.data.doctors) {
           setDoctors(response.data.doctors);
+        } else {
+          setDoctors([]);
         }
       } catch (err: any) {
+        console.error("Error fetching doctors:", err);
         setError(err.response?.data?.message || 'Failed to load doctors');
+        setDoctors([]);
       }
     };
 
-    const fetchAppointments = async () => {
-      try {
-        setAppointmentsLoading(true);
-        const response = await api.get('/appointments/my-appointments');
-        if (response.data.success) {
-          setAppointments(response.data.appointments || []);
-        }
-      } catch (err: any) {
-        if (err.response?.status !== 404) {
-          toast.error('Failed to load appointments');
-        }
-      } finally {
-        setAppointmentsLoading(false);
-      }
-    };
+// In PatientDashboard.tsx - update the fetchAppointments function
+const fetchAppointments = async () => {
+  try {
+    setAppointmentsLoading(true);
+    const response = await appointmentService.getMyAppointments();
+    console.log("Appointments response:", response);
+    
+    if (response.success) {
+      setAppointments(response.appointments || []);
+    } else {
+      // If the service returns an error but with empty array, use that
+      setAppointments([]);
+    }
+  } catch (err: any) {
+    console.error("Error fetching appointments:", err);
+    // For any other errors, use empty array
+    setAppointments([]);
+    if (err.response?.status !== 404) {
+      toast.error('Failed to load appointments');
+    }
+  } finally {
+    setAppointmentsLoading(false);
+  }
+};
 
     const fetchHealthMetrics = async () => {
       try {
+        // Try the health metrics endpoint
         const response = await api.get('/health-metrics/latest');
         if (response.data.success) {
           setHealthMetrics(response.data.metrics);
         }
       } catch (err: any) {
-        // If no metrics found, use default values
-        setHealthMetrics({
-          bloodPressure: "120/80",
-          heartRate: 72,
-          weight: 70,
-          height: 170,
-          bmi: 24.2,
-          lastUpdated: new Date().toISOString()
-        });
+        console.error("Error fetching health metrics:", err);
+        // If endpoint doesn't exist or no metrics found, use default values
+        if (err.response?.status === 404) {
+          console.log("Health metrics endpoint not found, using default values");
+          setHealthMetrics({
+            bloodPressure: "120/80",
+            heartRate: 72,
+            weight: 70,
+            height: 170,
+            bmi: 24.2,
+            lastUpdated: new Date().toISOString()
+          });
+        } else {
+          // For other errors, still provide default metrics
+          setHealthMetrics({
+            bloodPressure: "120/80",
+            heartRate: 72,
+            weight: 70,
+            height: 170,
+            bmi: 24.2,
+            lastUpdated: new Date().toISOString()
+          });
+        }
       }
     };
 
     const loadData = async () => {
-      await Promise.all([
-        fetchDoctors(),
-        fetchAppointments(),
-        fetchHealthMetrics()
-      ]);
-      setLoading(false);
+      try {
+        await Promise.all([
+          fetchDoctors(),
+          fetchAppointments(),
+          fetchHealthMetrics()
+        ]);
+      } catch (error) {
+        console.error("Error loading dashboard data:", error);
+      } finally {
+        setLoading(false);
+      }
     };
 
     loadData();
@@ -166,13 +210,22 @@ const PatientDashboard = () => {
   const fetchAppointments = async () => {
     try {
       setAppointmentsLoading(true);
-      const response = await api.get('/appointments/my-appointments');
-      if (response.data.success) {
+      const response = await appointmentService.getMyAppointments();
+      console.log("Refreshed appointments:", response);
+      
+      if (response.appointments) {
+        setAppointments(response.appointments || []);
+      } else if (response.data && response.data.appointments) {
         setAppointments(response.data.appointments || []);
+      } else {
+        setAppointments([]);
       }
     } catch (err: any) {
-      if (err.response?.status !== 404) {
-        toast.error('Failed to load appointments');
+      console.error("Error refreshing appointments:", err);
+      if (err.response?.status === 404) {
+        setAppointments([]);
+      } else if (err.response?.status !== 404) {
+        toast.error('Failed to refresh appointments');
       }
     } finally {
       setAppointmentsLoading(false);
@@ -393,10 +446,10 @@ const PatientDashboard = () => {
                             <div className="flex items-center justify-center gap-1 mb-2">
                               <Star className="h-3 w-3 fill-yellow-400 text-yellow-400" />
                               <span className="text-xs font-medium">
-                                {doctor.rating.toFixed(1)}
+                                {doctor.rating?.toFixed(1) || "5.0"}
                               </span>
                               <span className="text-xs text-muted-foreground">
-                                ({doctor.reviewCount} reviews)
+                                ({doctor.reviewCount || 0} reviews)
                               </span>
                             </div>
                             <p className="text-xs text-muted-foreground mb-3">
@@ -438,9 +491,9 @@ const PatientDashboard = () => {
                 <Card className="p-6 animate-fade-in" style={{ animationDelay: "0.1s" }}>
                   <div className="flex items-center justify-between mb-4">
                     <h3 className="font-heading font-semibold">Health Overview</h3>
-                    <Link to="/dashboard/patient/health-metrics">
-                      <Button variant="ghost" size="sm">Update</Button>
-                    </Link>
+                    <Button variant="ghost" size="sm" disabled>
+                      Update
+                    </Button>
                   </div>
                   <div className="space-y-4">
                     {healthMetrics ? (
@@ -478,11 +531,7 @@ const PatientDashboard = () => {
                     ) : (
                       <div className="text-center py-4 text-muted-foreground">
                         <p>No health metrics recorded</p>
-                        <Link to="/dashboard/patient/health-metrics">
-                          <Button size="sm" variant="outline" className="mt-2">
-                            Add Health Metrics
-                          </Button>
-                        </Link>
+                        <p className="text-xs mt-1">Feature coming soon</p>
                       </div>
                     )}
                   </div>
