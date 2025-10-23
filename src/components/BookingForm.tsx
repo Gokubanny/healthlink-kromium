@@ -1,5 +1,5 @@
 // ============================================
-// FILE: src/components/BookingForm.tsx (FIXED)
+// FILE: src/components/BookingForm.tsx (FIXED - Dialog Opening Issue)
 // ============================================
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
@@ -119,28 +119,12 @@ const BookingForm = ({ doctor, onBookingSuccess }: BookingFormProps) => {
     });
   };
 
-  const handleOpenChange = (open: boolean) => {
-    console.log("Dialog open state changed:", open);
-    setIsOpen(open);
-    if (!open) {
-      resetForm();
-    }
-  };
-
-  const handleButtonClick = (e: React.MouseEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    console.log("Book Now button clicked - Opening dialog");
-    setIsOpen(true);
-  };
-
   return (
-    <Dialog open={isOpen} onOpenChange={handleOpenChange}>
+    <Dialog open={isOpen} onOpenChange={setIsOpen}>
       <DialogTrigger asChild>
         <Button 
           size="sm" 
           className="w-full bg-primary hover:bg-primary-hover"
-          onClick={handleButtonClick}
         >
           Book Now
         </Button>
@@ -238,6 +222,16 @@ const BookingForm = ({ doctor, onBookingSuccess }: BookingFormProps) => {
                 <SelectItem value="Phone Call">Phone Call</SelectItem>
               </SelectContent>
             </Select>
+            {formData.mode === "Video Call" && (
+              <p className="text-xs text-muted-foreground mt-1">
+                You'll receive a video call link via email before your appointment
+              </p>
+            )}
+            {formData.mode === "Phone Call" && (
+              <p className="text-xs text-muted-foreground mt-1">
+                Doctor will call you at the provided phone number
+              </p>
+            )}
           </div>
 
           {/* Reason for Visit */}
