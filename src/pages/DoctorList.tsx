@@ -1,4 +1,4 @@
-// FILE: src/pages/DoctorList.tsx (FIXED)
+// FILE: src/pages/DoctorList.tsx (UPDATED)
 // ============================================
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
@@ -11,6 +11,7 @@ import { Search, Star, Calendar, MapPin, Clock } from "lucide-react";
 import { toast } from "sonner";
 import doctorService from "@/services/doctorService";
 import { useNavigate } from "react-router-dom";
+import BookingForm from "@/components/BookingForm"; // ADD THIS IMPORT
 
 const DoctorList = () => {
   const navigate = useNavigate();
@@ -32,34 +33,34 @@ const DoctorList = () => {
     return () => clearTimeout(delayDebounceFn);
   }, [specialty, searchTerm]);
 
-const fetchDoctors = async () => {
-  try {
-    setLoading(true);
-    const response = await doctorService.getAllDoctors({
-      specialty: specialty !== "all" ? specialty : undefined,
-      search: searchTerm || undefined,
-      limit: 20,
-      page: 1,
-    });
-    
-    console.log("Doctors response:", response);
-    
-    // Handle different response structures
-    if (response.doctors) {
-      setDoctors(response.doctors);
-    } else if (response.data && response.data.doctors) {
-      setDoctors(response.data.doctors);
-    } else {
+  const fetchDoctors = async () => {
+    try {
+      setLoading(true);
+      const response = await doctorService.getAllDoctors({
+        specialty: specialty !== "all" ? specialty : undefined,
+        search: searchTerm || undefined,
+        limit: 20,
+        page: 1,
+      });
+      
+      console.log("Doctors response:", response);
+      
+      // Handle different response structures
+      if (response.doctors) {
+        setDoctors(response.doctors);
+      } else if (response.data && response.data.doctors) {
+        setDoctors(response.data.doctors);
+      } else {
+        setDoctors([]);
+      }
+    } catch (error: any) {
+      console.error("Error fetching doctors:", error);
+      toast.error(error.response?.data?.message || "Failed to load doctors");
       setDoctors([]);
+    } finally {
+      setLoading(false);
     }
-  } catch (error: any) {
-    console.error("Error fetching doctors:", error);
-    toast.error(error.response?.data?.message || "Failed to load doctors");
-    setDoctors([]);
-  } finally {
-    setLoading(false);
-  }
-};
+  };
 
   const fetchSpecialties = async () => {
     try {
@@ -71,11 +72,7 @@ const fetchDoctors = async () => {
     }
   };
 
-  const handleBookAppointment = (doctorId: string, doctorName: string) => {
-    toast.success(`Opening booking form for ${doctorName}`);
-    // You can implement a booking modal or navigate to a booking page
-    // navigate(`/book-appointment/${doctorId}`);
-  };
+  // REMOVED the old handleBookAppointment function
 
   const getInitials = (firstName: string, lastName: string) => {
     return `${firstName?.[0] || ''}${lastName?.[0] || ''}`.toUpperCase();
@@ -188,13 +185,14 @@ const fetchDoctors = async () => {
                 </div>
 
                 <div className="space-y-2">
-                  <Button
-                    className="w-full bg-primary hover:bg-primary-hover"
-                    onClick={() => handleBookAppointment(doctor._id, `Dr. ${doctor.firstName} ${doctor.lastName}`)}
-                  >
-                    <Calendar className="mr-2 h-4 w-4" />
-                    Book Appointment
-                  </Button>
+                  {/* REPLACED the old Button with BookingForm component */}
+                  <BookingForm 
+                    doctor={doctor}
+                    onBookingSuccess={() => {
+                      // Optional: Refresh doctors list or show success message
+                      toast.success("Appointment booked successfully!");
+                    }}
+                  />
                   <Button variant="outline" className="w-full">
                     View Profile
                   </Button>

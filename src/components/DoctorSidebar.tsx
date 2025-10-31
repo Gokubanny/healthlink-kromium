@@ -33,25 +33,32 @@ export function DoctorSidebar() {
   const collapsed = state === "collapsed";
 
   return (
-    <Sidebar className={collapsed ? "w-14" : "w-60"} collapsible="icon">
-      <div className="p-4 border-b border-border flex items-center gap-2">
+    <Sidebar 
+      className={`${collapsed ? "w-14" : "w-60"} bg-background/95 backdrop-blur-sm border-r border-border/50`} 
+      collapsible="icon"
+    >
+      <div className="p-4 border-b border-border/50 flex items-center gap-2 bg-background/80">
         <div className="bg-primary rounded-lg p-2">
           <Heart className="h-5 w-5 text-primary-foreground" fill="currentColor" />
         </div>
-        {!collapsed && <span className="font-heading text-lg font-bold">Doctor Portal</span>}
+        {!collapsed && <span className="font-heading text-lg font-bold text-foreground">Doctor Portal</span>}
       </div>
 
       <SidebarContent>
         <SidebarGroup>
-          <SidebarGroupLabel>Menu</SidebarGroupLabel>
+          <SidebarGroupLabel className="text-foreground/80">Menu</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
               {items.map((item) => (
                 <SidebarMenuItem key={item.title}>
-                  <SidebarMenuButton asChild isActive={isActive(item.url)}>
+                  <SidebarMenuButton 
+                    asChild 
+                    isActive={isActive(item.url)}
+                    className="text-foreground hover:bg-accent hover:text-foreground data-[active=true]:bg-primary data-[active=true]:text-primary-foreground"
+                  >
                     <Link to={item.url}>
                       <item.icon className="h-4 w-4" />
-                      {!collapsed && <span>{item.title}</span>}
+                      {!collapsed && <span className="text-foreground">{item.title}</span>}
                     </Link>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
@@ -61,7 +68,7 @@ export function DoctorSidebar() {
         </SidebarGroup>
       </SidebarContent>
 
-      <div className="p-2 border-t border-border">
+      <div className="p-2 border-t border-border/50 bg-background/80">
         <Button 
           onClick={logout} 
           variant="ghost" 

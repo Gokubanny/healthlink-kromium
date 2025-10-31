@@ -1,5 +1,5 @@
 // ============================================
-// FILE: src/components/BookingForm.tsx (FIXED - Dialog Opening Issue)
+// FILE: src/components/BookingForm.tsx 
 // ============================================
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
